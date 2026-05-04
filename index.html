@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>LTKDB | LTK Schedule & Status</title>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/locales-all.global.min.js"></script>
+    <link rel="stylesheet" href="./styles.css?v=20260503-83">
+    <script type="module" src="./app.js?v=20260503-83"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">LTKDB</p>
+        <h1>LTK Schedule & Status</h1>
+        <p id="dataSourceStatus" class="data-source-status">データ確認中</p>
+        <button id="reloadData" class="reload-data-button" type="button">スプシ再読込</button>
+      </div>
+      <div class="nav-stack">
+        <nav class="view-tabs main-tabs" aria-label="メインナビゲーション">
+          <button class="tab-button is-active" data-view="calendar">予定</button>
+          <button class="tab-button" data-view="league">リーグ表</button>
+          <button class="tab-button" data-view="players">ランキング</button>
+          <button class="tab-button" data-view="stats">個人スタッツ</button>
+          <button class="tab-button" data-view="champions">チャンピオン</button>
+        </nav>
+        <nav class="view-tabs aux-tabs" aria-label="補助リンク">
+          <button class="tab-button" data-view="about">このサイトについて</button>
+          <button class="tab-button" data-view="contact">お問い合わせ</button>
+        </nav>
+      </div>
+    </header>
+
+    <main class="app-layout">
+      <aside class="live-now-panel" aria-label="LIVE NOW">
+        <div class="sidebar-heading">
+          <p class="eyebrow">LIVE NOW</p>
+          <h2>LOL配信中</h2>
+          <p id="liveNowStatus">LTK参加者の配信を確認中</p>
+        </div>
+        <div id="liveNowList" class="live-now-list"></div>
+      </aside>
+
+      <div class="main-content">
+      <section class="toolbar" aria-label="フィルター">
+        <label>
+          <span>種別</span>
+          <select id="typeFilter">
+            <option value="">すべて</option>
+            <option value="スクリム">スクリム</option>
+            <option value="本番">本番</option>
+            <option value="スクリム結果">スクリム結果</option>
+          </select>
+        </label>
+        <label>
+          <span>階級</span>
+          <select id="tierFilter">
+            <option value="">すべて</option>
+            <option value="MASTERS">MASTERS</option>
+            <option value="CORE">CORE</option>
+            <option value="NEXT">NEXT</option>
+          </select>
+        </label>
+        <label class="search-box">
+          <span>検索</span>
+          <input id="keywordFilter" type="search" placeholder="チーム名、選手名、チャンピオン">
+        </label>
+      </section>
+
+      <section id="calendarView" class="view is-active" aria-label="予定カレンダー">
+        <div class="display-switch" aria-label="カレンダー表示方式">
+          <button class="mode-button is-active" data-calendar-mode="full">フルカレンダー</button>
+          <button class="mode-button" data-calendar-mode="cards">カード</button>
+        </div>
+        <div id="fullCalendar" class="full-calendar-shell"></div>
+        <div id="calendarGrid" class="calendar-grid"></div>
+      </section>
+
+      <section id="playersView" class="view" aria-label="ランキング">
+        <div class="section-heading">
+          <h2>個人ランキング</h2>
+          <p>画像から取得できたKDA、平均ダメージ、15分CSを階級別に集計します。</p>
+        </div>
+        <div id="rankingBoard" class="ranking-board"></div>
+      </section>
+
+      <section id="leagueView" class="view" aria-label="スクリムリーグ表">
+        <div class="section-heading">
+          <h2>スクリムリーグ表</h2>
+        </div>
+        <div id="leagueBoard" class="league-board"></div>
+      </section>
+
+      <section id="statsView" class="view" aria-label="個人スタッツ">
+        <div class="section-heading">
+          <h2>個人スタッツ</h2>
+        </div>
+        <div id="playerStats" class="table-shell"></div>
+      </section>
+
+      <section id="championsView" class="view" aria-label="チャンピオン成績">
+        <div class="section-heading">
+          <h2>チャンピオンランキング</h2>
+          <p>PICK、BAN、勝率、登場数を階級フィルターで確認できます。</p>
+        </div>
+        <fieldset class="check-filters">
+          <legend>階級</legend>
+          <label><input type="checkbox" name="champTier" value="NEXT" checked> NEXT</label>
+          <label><input type="checkbox" name="champTier" value="CORE" checked> CORE</label>
+          <label><input type="checkbox" name="champTier" value="MASTERS" checked> MASTERS</label>
+        </fieldset>
+        <div id="championStats" class="table-shell"></div>
+      </section>
+
+      <section id="aboutView" class="view" aria-label="このサイトについて">
+        <div class="section-heading">
+          <h2>このサイトについて</h2>
+          <p>LTKの試合予定、スクリム結果、配信状況、各種スタッツをまとめて確認できるイベント情報サイトです。</p>
+        </div>
+        <article class="info-page">
+          <section class="info-block">
+            <h3>LTK Schedule & Statusについて</h3>
+            <p>
+              LTK Schedule & Statusは、League The k4senの参加者・視聴者が、試合予定、スクリム結果、参加者プロフィール、LIVE配信中の情報をまとめて確認できるイベントデータサイトです。
+              Googleスプレッドシートで管理しているLTKDBをもとに、カレンダー、リーグ表、個人スタッツ、チャンピオン成績を見やすく整理しています。
+            </p>
+          </section>
+
+          <div class="info-grid">
+            <section class="info-block">
+              <h3>主な機能</h3>
+              <ul>
+                <li>スクリム・本番予定をフルカレンダー形式とカード形式で確認できます。</li>
+                <li>イベントカードから対戦カード、参加者、Gameごとの使用チャンピオンとスタッツを確認できます。</li>
+                <li>階級別のリーグ表、個人ランキング、個人スタッツ、チャンピオンランキングを確認できます。</li>
+                <li>LTK参加者のうち、League of Legendsを配信中のTwitch配信をLIVE NOWに表示します。</li>
+                <li>スクリムやリスナー戦を除外して、用途に合わせた集計を確認できます。</li>
+              </ul>
+            </section>
+
+            <section class="info-block">
+              <h3>このサイトで見られるデータ</h3>
+              <ul>
+                <li>本番・スクリム予定、対戦カード、階級、match_name、開始時刻</li>
+                <li>試合結果、勝敗、試合時間、チームKDA、最大ダメージ</li>
+                <li>個人別のKDA、K/D/A、キル関与率、CS@15、平均ダメージ</li>
+                <li>チャンピオン別のピック率、ピック/バン率、勝率</li>
+                <li>参加者の所属、アイコン、X、YouTube、Twitchリンク</li>
+              </ul>
+            </section>
+          </div>
+
+          <section class="info-block">
+            <h3>データについて</h3>
+            <p>
+              本サイトの表示データは、LTKDBとして管理しているGoogleスプレッドシートをもとにしています。
+              試合結果や個人スタッツはスクリーンショットから抽出した情報を含むため、読み取り精度や手動確認状況によって一部の値が修正される場合があります。
+            </p>
+          </section>
+
+          <section class="info-block">
+            <h3>今後追加したい機能</h3>
+            <ul>
+              <li>サイト全体の検索性改善</li>
+              <li>選手・チーム・チャンピオン詳細ページの拡充</li>
+              <li>スクリム画像取り込み後の確認フロー改善</li>
+              <li>Firebaseなど、よりリアルタイムに反映しやすいDB構成への移行検討</li>
+            </ul>
+          </section>
+
+          <section class="info-block">
+            <h3>外部サービスについて</h3>
+            <p>
+              本サイトは、参加者プロフィールやLIVE NOW表示のために、X、YouTube、Twitchなど外部サービスへのリンクや配信情報を参照します。
+              外部サイトで提供される情報や利用条件は、それぞれのサービスの規約を確認してください。
+            </p>
+          </section>
+
+          <section class="info-block">
+            <h3>免責事項</h3>
+            <p>
+              本サイトはLTK関連情報を見やすく整理するためのツールです。掲載データの正確性には注意していますが、手動確認前のデータやOCR由来の値を含む場合があります。
+              本サイトの利用により発生した損害について、運営者は責任を負いません。
+            </p>
+          </section>
+        </article>
+      </section>
+
+      <section id="contactView" class="view" aria-label="お問い合わせ">
+        <div class="section-heading">
+          <h2>お問い合わせ</h2>
+          <p>データ修正、不具合、追加要望などの連絡先です。</p>
+        </div>
+        <article class="info-page contact-page">
+          <section class="info-block">
+            <h3>お問い合わせ内容の例</h3>
+            <ul>
+              <li>選手名、所属、SNSリンク、アイコンなどのプロフィール修正</li>
+              <li>試合結果、KDA、ダメージ、CS、チャンピオン名などのデータ修正</li>
+              <li>カレンダー予定、match_name、時刻、対戦カードの修正</li>
+              <li>サイト表示の不具合や見づらい箇所の報告</li>
+              <li>追加してほしいランキング、フィルター、詳細表示の要望</li>
+            </ul>
+          </section>
+
+          <section class="info-block">
+            <h3>連絡時にあると助かる情報</h3>
+            <ul>
+              <li>該当ページ名、試合日、match_name、試合IDのいずれか</li>
+              <li>修正したい選手名、チーム名、チャンピオン名</li>
+              <li>正しい値と、可能であれば根拠になるスクリーンショット</li>
+              <li>スマホ/PCなど、表示不具合が起きた環境</li>
+            </ul>
+          </section>
+
+          <section class="info-block">
+            <h3>連絡先</h3>
+            <p>
+              現在、専用フォームは準備中です。データ修正や不具合報告は、LTKDB管理者まで連絡してください。
+              公開用の問い合わせフォームやSNSリンクを設置する場合は、この欄に追記します。
+            </p>
+          </section>
+
+          <section class="info-block">
+            <h3>注意事項</h3>
+            <p>
+              連絡内容に個人情報や非公開情報を含めないでください。スクリーンショットを送る場合は、公開して問題ない範囲だけを共有してください。
+            </p>
+          </section>
+        </article>
+      </section>
+      </div>
+
+      <aside id="filterPanel" class="filter-panel" aria-label="FILTER">
+        <div class="sidebar-heading">
+          <p class="eyebrow">FILTER</p>
+          <div class="filter-heading-row">
+            <h2>表示条件</h2>
+            <button id="filterToggle" class="filter-toggle-button" type="button">隠す</button>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <dialog id="matchDialog" class="match-dialog">
+      <div class="dialog-head">
+        <div>
+          <p id="dialogMeta" class="eyebrow"></p>
+          <h2 id="dialogTitle"></h2>
+        </div>
+        <button id="closeDialog" class="icon-button" aria-label="閉じる">×</button>
+      </div>
+      <div id="dialogBody"></div>
+    </dialog>
+  </body>
+</html>

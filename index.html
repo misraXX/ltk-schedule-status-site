@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="ja">
   <head>
     <meta charset="utf-8">
@@ -6,18 +6,24 @@
     <title>LTKDB | LTK Schedule & Status</title>
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/locales-all.global.min.js"></script>
-    <link rel="stylesheet" href="./styles.css?v=20260503-83">
-    <script type="module" src="./app.js?v=20260503-83"></script>
+    <link rel="stylesheet" href="./styles.css?v=20260503-88">
+    <script type="module" src="./app.js?v=20260503-94"></script>
   </head>
   <body>
     <header class="topbar">
       <div>
         <p class="eyebrow">LTKDB</p>
         <h1>LTK Schedule & Status</h1>
-        <p id="dataSourceStatus" class="data-source-status">データ確認中</p>
-        <button id="reloadData" class="reload-data-button" type="button">スプシ再読込</button>
+        <div class="data-source-row">
+          <p id="dataSourceStatus" class="data-source-status">データ確認中</p>
+        </div>
+        <button id="reloadData" class="reload-data-button" type="button">データベース再読込</button>
       </div>
       <div class="nav-stack">
+        <nav class="view-tabs aux-tabs" aria-label="補助リンク">
+          <button class="tab-button" data-view="about">このサイトについて</button>
+          <button class="tab-button" data-view="contact">お問い合わせ</button>
+        </nav>
         <nav class="view-tabs main-tabs" aria-label="メインナビゲーション">
           <button class="tab-button is-active" data-view="calendar">予定</button>
           <button class="tab-button" data-view="league">リーグ表</button>
@@ -25,10 +31,7 @@
           <button class="tab-button" data-view="stats">個人スタッツ</button>
           <button class="tab-button" data-view="champions">チャンピオン</button>
         </nav>
-        <nav class="view-tabs aux-tabs" aria-label="補助リンク">
-          <button class="tab-button" data-view="about">このサイトについて</button>
-          <button class="tab-button" data-view="contact">お問い合わせ</button>
-        </nav>
+        <button id="filterToggle" class="filter-toggle-button nav-filter-toggle" type="button">隠す</button>
       </div>
     </header>
 
@@ -80,7 +83,7 @@
       <section id="playersView" class="view" aria-label="ランキング">
         <div class="section-heading">
           <h2>個人ランキング</h2>
-          <p>画像から取得できたKDA、平均ダメージ、15分CSを階級別に集計します。</p>
+          <p>画像から取得できたKDA、DPM、15分CSを階級別に集計します。</p>
         </div>
         <div id="rankingBoard" class="ranking-board"></div>
       </section>
@@ -123,7 +126,7 @@
             <h3>LTK Schedule & Statusについて</h3>
             <p>
               LTK Schedule & Statusは、League The k4senの参加者・視聴者が、試合予定、スクリム結果、参加者プロフィール、LIVE配信中の情報をまとめて確認できるイベントデータサイトです。
-              Googleスプレッドシートで管理しているLTKDBをもとに、カレンダー、リーグ表、個人スタッツ、チャンピオン成績を見やすく整理しています。
+              データベースとして管理しているLTKDBをもとに、カレンダー、リーグ表、個人スタッツ、チャンピオン成績を見やすく整理しています。
             </p>
           </section>
 
@@ -144,7 +147,7 @@
               <ul>
                 <li>本番・スクリム予定、対戦カード、階級、match_name、開始時刻</li>
                 <li>試合結果、勝敗、試合時間、チームKDA、最大ダメージ</li>
-                <li>個人別のKDA、K/D/A、キル関与率、CS@15、平均ダメージ</li>
+                <li>個人別のKDA、K/D/A、キル関与率、CS@15、DPM</li>
                 <li>チャンピオン別のピック率、ピック/バン率、勝率</li>
                 <li>参加者の所属、アイコン、X、YouTube、Twitchリンク</li>
               </ul>
@@ -154,7 +157,7 @@
           <section class="info-block">
             <h3>データについて</h3>
             <p>
-              本サイトの表示データは、LTKDBとして管理しているGoogleスプレッドシートをもとにしています。
+              本サイトの表示データは、LTKDBとして管理しているデータベースをもとにしています。
               試合結果や個人スタッツはスクリーンショットから抽出した情報を含むため、読み取り精度や手動確認状況によって一部の値が修正される場合があります。
             </p>
           </section>
@@ -237,7 +240,6 @@
           <p class="eyebrow">FILTER</p>
           <div class="filter-heading-row">
             <h2>表示条件</h2>
-            <button id="filterToggle" class="filter-toggle-button" type="button">隠す</button>
           </div>
         </div>
       </aside>
@@ -255,3 +257,7 @@
     </dialog>
   </body>
 </html>
+
+
+
+

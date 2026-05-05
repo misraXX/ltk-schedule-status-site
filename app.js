@@ -1,7 +1,18 @@
-import { loadLiveStreams, loadSiteData } from "./sheet-loader.js?v=20260503-79";
+﻿import { loadLiveStreams, loadSiteData } from "./sheet-loader.js?v=20260503-83";
 
 const VIEWER_OPPONENT_LABEL = "リスナー";
 const VIEWER_TEAM_KEY = "__LISTENER__";
+const ROLE_ORDER = ["TOP", "JG", "MID", "ADC", "SUP"];
+const DRAFT_SLOTS = {
+  BLUE: {
+    BAN: [1, 3, 5, 14, 16],
+    PICK: [7, 10, 11, 18, 19]
+  },
+  RED: {
+    BAN: [2, 4, 6, 13, 15],
+    PICK: [8, 9, 12, 17, 20]
+  }
+};
 
 let bpRows = [];
 let championIcons = {};
@@ -81,11 +92,12 @@ function setupHeaderEnhancements() {
     status.id = "headerStatus";
     status.className = "header-status";
     status.textContent = "LIVE配信中 --件 / 本日の試合 --件 / 最終更新 --";
+    const dataSourceRow = intro.querySelector(".data-source-row");
     const dataStatus = intro.querySelector("#dataSourceStatus");
-    (dataStatus || title)?.after(status);
+    (dataSourceRow || dataStatus || title)?.after(status);
     elements.headerStatus = status;
   }
-  if (elements.filterPanel && !elements.filterPanel.querySelector("#filterToggle")) {
+  if (elements.filterPanel && !elements.filterToggle) {
     let headingRow = elements.filterPanel.querySelector(".filter-heading-row");
     if (!headingRow) {
       const heading = elements.filterPanel.querySelector(".sidebar-heading");
@@ -136,18 +148,18 @@ function ensureExtraFilters(toolbar) {
 
 async function hydrateData(options = {}) {
   try {
-    if (elements.dataSourceStatus) elements.dataSourceStatus.textContent = options.refresh ? "スプレッドシートを再読込中" : "データ確認中";
+    if (elements.dataSourceStatus) elements.dataSourceStatus.textContent = options.refresh ? "データベースを再読込中" : "データ確認中";
     if (elements.reloadData) elements.reloadData.disabled = true;
     applyData(await loadSiteData(options));
     markUpdated();
     document.body.dataset.dataSource = "sheet";
-    if (elements.dataSourceStatus) elements.dataSourceStatus.textContent = "スプレッドシートの最新データを表示中";
+    if (elements.dataSourceStatus) elements.dataSourceStatus.textContent = "データベースの最新データを表示中";
     render();
   } catch (error) {
     console.error("Google Sheets load failed.", error);
     document.body.dataset.dataSource = "error";
     if (elements.dataSourceStatus) {
-      elements.dataSourceStatus.textContent = "スプレッドシート読み込み失敗: GASのWebアプリ公開状態を確認してください";
+      elements.dataSourceStatus.textContent = "データベース読み込み失敗: GASのWebアプリ公開状態を確認してください";
     }
   } finally {
     if (elements.reloadData) elements.reloadData.disabled = false;
@@ -532,11 +544,10 @@ function calendarEventNode(item) {
       <div class="fc-match-title">
         <span class="fc-match-team is-left">${calendarTeamIcon(item.left)}<span>${teamShortName(item.left)}</span></span>
         <span class="fc-event-vs">vs</span>
-        <span class="fc-match-team is-right is-listener"><span>リスナー</span></span>
+        <span class="fc-match-team is-right is-listener"><span>${VIEWER_OPPONENT_LABEL}</span></span>
       </div>
       <div class="fc-match-sub">
         <span>${caption}</span>
-        ${item.resultRecord ? `<b>${viewerResultLabel(item)}</b>` : ""}
       </div>
     `;
     return node;
@@ -560,7 +571,6 @@ function calendarEventNode(item) {
     </div>
     <div class="fc-match-sub">
       <span>${caption}</span>
-      ${item.resultRecord ? `<b>${item.resultRecord.leftWins}-${item.resultRecord.rightWins}</b>` : ""}
     </div>
   `;
   return node;
@@ -785,11 +795,101 @@ function renderGameDetail(section, result) {
     return;
   }
   detail.innerHTML = `
-    <h3>${result.match || result.id} / WIN ${winnerDisplayName(result)}</h3>
+    <h3 class="game-detail-title">${gameDetailTitle(result)}</h3>
+    ${bpFlowTable(result, rows)}
     <div class="game-detail-grid">
       ${gameDetailTeam(result.left, rows)}
       ${gameDetailTeam(result.right, rows)}
     </div>
+  `;
+}
+
+function gameDetailTitle(result) {
+  const winner = result.winner;
+  const label = result.match?.startsWith("G") ? result.match.replace(/^G/, "Game") : result.match || result.id;
+  return `
+    <span>${label} / WIN</span>
+    <span class="game-detail-winner">
+      ${winner !== VIEWER_TEAM_KEY ? teamLogo(winner, "ranking-team-logo") : ""}
+      <span>${winnerDisplayName(result)}</span>
+    </span>
+  `;
+}
+
+function bpFlowTable(result, rows) {
+  const teamsForRows = [result.left, result.right].filter(Boolean);
+  if (!teamsForRows.length) return "";
+  return `
+    <section class="bp-flow">
+      <h4>BP Flow</h4>
+      <div class="bp-flow-board">
+        ${teamsForRows.map((teamKey) => bpFlowTeamRow(result, rows, teamKey)).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function bpFlowTeamRow(result, rows, teamKey) {
+  const cells = draftActionsForTeam(result, rows, teamKey);
+  const title = teamKey === VIEWER_TEAM_KEY ? VIEWER_OPPONENT_LABEL : teamShortName(teamKey);
+  return `
+    <div class="bp-flow-row" style="--team:${teams[teamKey]?.accent || "#14b8a6"}">
+      <div class="bp-flow-team">
+        ${teamKey !== VIEWER_TEAM_KEY ? teamLogo(teamKey, "bp-flow-logo") : ""}
+        <strong>${title}</strong>
+      </div>
+      <div class="bp-flow-cells">
+        ${cells.length ? cells.map(bpFlowCell).join("") : `<span class="bp-flow-empty">BPデータなし</span>`}
+      </div>
+    </div>
+  `;
+}
+
+function draftActionsForTeam(result, rows, teamKey) {
+  const side = draftSideForTeam(result, teamKey);
+  const slots = DRAFT_SLOTS[side] || DRAFT_SLOTS.BLUE;
+  const sourceActions = bpRows
+    .filter((row) => row.matchId === result.id && row.team === teamKey)
+    .sort((a, b) => (a.bpOrder || 999) - (b.bpOrder || 999));
+  const banActions = sourceActions.filter((row) => row.type === "BAN").map((row, index) => draftAction(row, slots.BAN[index] || row.bpOrder || index + 1, index));
+  let pickActions = sourceActions.filter((row) => row.type === "PICK").map((row, index) => draftAction(row, slots.PICK[index] || row.bpOrder || index + 1, index));
+  if (!pickActions.length) {
+    pickActions = ROLE_ORDER
+      .map((role) => rows.find((row) => row.team === teamKey && row.role === role))
+      .filter(Boolean)
+      .map((row, index) => ({
+        champion: row.champion,
+        type: "PICK",
+        label: `P${index + 1}`,
+        detail: row.role,
+        order: slots.PICK[index] || 20
+      }));
+  }
+  return [...banActions, ...pickActions].sort((a, b) => a.order - b.order);
+}
+
+function draftAction(row, fallbackOrder, index) {
+  return {
+    champion: row.champion,
+    type: row.type,
+    label: row.type === "BAN" ? `B${index + 1}` : `P${index + 1}`,
+    detail: row.role || row.phase || "",
+    order: fallbackOrder
+  };
+}
+
+function draftSideForTeam(result, teamKey) {
+  const action = bpRows.find((row) => row.matchId === result.id && row.team === teamKey && (row.side === "BLUE" || row.side === "RED"));
+  if (action) return action.side;
+  return teamKey === result.left ? "BLUE" : "RED";
+}
+
+function bpFlowCell(item) {
+  return `
+    <span class="bp-flow-cell is-${item.type.toLowerCase()}" style="grid-column:${item.order}" title="${item.type}: ${item.champion}${item.detail ? ` / ${item.detail}` : ""}">
+      ${champIcon(item.champion)}
+      <small>${item.label}</small>
+    </span>
   `;
 }
 
@@ -938,7 +1038,7 @@ function playerStatsColumns() {
     { key: "assists", label: "A", numeric: true, value: (item) => item.avgAssists, render: (item) => formatDecimal(item.avgAssists) },
     { key: "kp", label: "KP", numeric: true, value: (item) => item.killParticipation, render: (item) => percent(item.killParticipation) },
     { key: "cs15", label: "CS@15", numeric: true, value: (item) => item.avgCs15, render: (item) => item.avgCs15 == null ? "-" : formatDecimal(item.avgCs15) },
-    { key: "damage", label: "DMG", numeric: true, value: (item) => item.avgDamage, render: (item) => formatNumber(item.avgDamage) },
+    { key: "dpm", label: "DPM", numeric: true, value: (item) => item.dpm, render: (item) => item.dpm == null ? "-" : formatNumber(item.dpm) },
     { key: "damageShare", label: "DMG%", numeric: true, value: (item) => item.damageShare, render: (item) => percent(item.damageShare) },
     { key: "championCount", label: "Champ", numeric: true, value: (item) => item.championCount, render: (item) => formatDecimal(item.championCount) }
   ];
@@ -1092,7 +1192,7 @@ function rankingTier(tier, rows) {
     rankingList("A", rows, "avgAssists", formatDecimal),
     rankingList("キル関与率", rows, "killParticipation", percent),
     rankingList("CS@15", rows.filter((item) => item.avgCs15 != null), "avgCs15", formatDecimal),
-    rankingList("平均ダメージ", rows, "avgDamage", formatNumber),
+    rankingList("DPM", rows.filter((item) => item.dpm != null), "dpm", formatNumber),
     rankingList("ダメージ割合", rows, "damageShare", percent),
     rankingList("使用チャンピオン数", rows, "championCount", formatDecimal)
   );
@@ -1139,7 +1239,7 @@ function renderChampions() {
     championRankingList("ピック率", filtered, "pickRate", (item) => rateWithCount(item.picks, item.matchCount), "pick"),
     championRankingList("バン率", filtered, "banRate", (item) => rateWithCount(item.bans, item.matchCount), "ban"),
     championRankingList("ピックorバン率", filtered, "presenceRate", (item) => rateWithCount(item.presence, item.matchCount), "presence"),
-    championRankingList("勝率（3回以上ピックされたチャンピオンのみ）", filtered.filter((item) => item.picks >= 3), "winRate", (item) => rateWithCount(item.wins, item.picks), "win")
+    championRankingList("勝率（ピック数3回以上）", filtered.filter((item) => item.picks >= 3), "winRate", (item) => rateWithCount(item.wins, item.picks), "win")
   );
 }
 
@@ -1225,7 +1325,7 @@ function buildPlayerStats() {
   competitivePlayerMatches().forEach((row) => {
     const key = row.name;
     if (!map.has(key)) {
-      map.set(key, { name: row.name, team: row.team, tier: row.tier, role: row.role, matches: 0, wins: 0, kills: 0, deaths: 0, assists: 0, damage: 0, cs15: 0, cs15Matches: 0, gold: 0, champions: new Set() });
+      map.set(key, { name: row.name, team: row.team, tier: row.tier, role: row.role, matches: 0, wins: 0, kills: 0, deaths: 0, assists: 0, damage: 0, dpmDamage: 0, dpmMinutes: 0, cs15: 0, cs15Matches: 0, gold: 0, champions: new Set() });
     }
     const item = map.get(key);
     item.matches += 1;
@@ -1234,6 +1334,11 @@ function buildPlayerStats() {
     item.deaths += row.deaths;
     item.assists += row.assists;
     item.damage += row.damage;
+    const minutes = matchDurationMinutes(row.matchId);
+    if (minutes) {
+      item.dpmDamage += row.damage;
+      item.dpmMinutes += minutes;
+    }
     if (Number.isFinite(row.cs15) && row.cs15 > 0) {
       item.cs15 += row.cs15;
       item.cs15Matches += 1;
@@ -1250,6 +1355,7 @@ function buildPlayerStats() {
     killParticipation: teamKillParticipation(item),
     damageShare: teamDamageShare(item),
     avgDamage: item.damage / item.matches,
+    dpm: item.dpmMinutes ? item.dpmDamage / item.dpmMinutes : null,
     avgCs15: item.cs15Matches ? item.cs15 / item.cs15Matches : null,
     avgGold: item.gold / item.matches,
     championCount: item.champions.size,
@@ -1259,13 +1365,15 @@ function buildPlayerStats() {
 
 function buildChampionStats() {
   const picks = competitivePlayerMatches().map((row) => ({ matchId: row.matchId, tier: row.tier, champion: row.champion, type: "PICK", win: row.result === "WIN", role: row.role }));
-  const bans = competitiveBpRows().map((row) => ({ matchId: row.matchId, tier: row.tier, champion: row.champion, type: row.type, win: false, role: "" }));
+  const bans = competitiveBpRows()
+    .filter((row) => row.type === "BAN")
+    .map((row) => ({ matchId: row.matchId, tier: row.tier, champion: row.champion, type: "BAN", win: false, role: "" }));
   return [...picks, ...bans];
 }
 
 function mergeChampionStats(rows) {
   const map = new Map();
-  const matchCount = new Set(competitivePlayerMatches().map((row) => row.matchId)).size || 1;
+  const matchCount = new Set(rows.map((row) => row.matchId).filter(Boolean)).size || 1;
   rows.forEach((row) => {
     if (!row.champion) return;
     if (!map.has(row.champion)) {
@@ -1344,6 +1452,17 @@ function leagueScrimResults() {
 
 function competitivePlayerMatches() {
   return playerMatches.filter((row) => row.name && row.team !== VIEWER_TEAM_KEY && matchPassesGlobalFilters(row.matchId));
+}
+
+function matchDurationMinutes(matchId) {
+  const match = scrimResults.find((row) => row.id === matchId);
+  if (!match?.time) return null;
+  const parts = String(match.time)
+    .split(":")
+    .map((part) => Number(part));
+  if (parts.length < 2 || parts.some((part) => !Number.isFinite(part))) return null;
+  if (parts.length === 2) return parts[0] + parts[1] / 60;
+  return (parts[0] * 60) + parts[1] + parts[2] / 60;
 }
 
 function competitiveBpRows() {
@@ -1628,3 +1747,7 @@ function rateWithCount(numerator, denominator) {
   const rate = denominator ? numerator / denominator : 0;
   return `${percent(rate)} (${numerator}/${denominator || 0})`;
 }
+
+
+
+

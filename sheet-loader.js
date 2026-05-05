@@ -22,8 +22,8 @@ export async function loadSiteData(options = {}) {
   const scheduleRows = sheets["サイト_予定"] || [];
   const profileRows = sheets["サイト_選手プロフィール"] || [];
   const resultRows = sheets["対戦結果まとめ"] || [];
-  const playerRows = sheets["サイト_試合プレイヤー実績"] || [];
-  const bpSourceRows = sheets["サイト_BP実績"] || [];
+  const playerRows = sheets["リザルト詳細"] || sheets["サイト_試合プレイヤー実績"] || [];
+  const bpSourceRows = sheets["BP詳細"] || sheets["サイト_BP実績"] || [];
   const championRows = sheets["チャンピオンアイコン"] || [];
   const lookup = buildTeamLookup(teamRows);
   const teams = buildTeams(teamRows);
@@ -34,7 +34,7 @@ export async function loadSiteData(options = {}) {
     scrimResults: buildScrimResults(resultRows, teamRows, lookup),
     participants: buildParticipants(profileRows, teamRows, lookup),
     playerMatches: buildPlayerMatchesStable(playerRows, teamRows, lookup),
-    bpRows: buildBpRows(bpSourceRows),
+    bpRows: buildBpRows(bpSourceRows, teamRows, lookup),
     championIcons: buildChampionIcons(championRows)
   };
 }
@@ -263,10 +263,22 @@ function buildScrimResults(rows, teamRows, lookup) {
         rightGold: numberValue(row["チーム2ゴールド"]),
         carry: clean(row["最大ダメージ選手"]),
         maxDamage: numberValue(row["最大ダメージ"]),
+        eventId: clean(rowValue(row, 19)),
+        matchKind: clean(rowValue(row, 20)),
+        resultImageUrl: clean(rowValue(row, 17)),
+        bpImageUrl: clean(rowValue(row, 21)),
+        minute15ImageUrl: clean(rowValue(row, 22)),
+        videoUrl: clean(rowValue(row, 23)),
+        banMemo: clean(rowValue(row, 24)),
         status: "completed",
         viewerMatch
       };
     });
+}
+
+function rowValue(row, index) {
+  const keys = Object.keys(row);
+  return keys[index] === undefined ? "" : row[keys[index]];
 }
 
 function buildPlayerMatchesLoose(rows, teamRows, lookup) {
@@ -317,20 +329,25 @@ function buildPlayerMatches(rows, teamRows, lookup) {
     });
 }
 
-function buildBpRows(rows) {
+function buildBpRows(rows, teamRows, lookup) {
   return rows
-    .filter((row) => clean(row["種別"]).toUpperCase() === "BAN")
     .map((row) => {
-      const rawTeam = row["チーム名"];
+      const keys = Object.keys(row);
+      const rawTeam = row["チーム名"] ?? row[keys[3]];
+      const type = clean(row["種別"] ?? row[keys[5]]).toUpperCase();
       return {
-        matchId: clean(row["試合ID"]),
-        team: isViewerTeamName(rawTeam) ? VIEWER_TEAM_KEY : "",
+        matchId: clean(row["試合ID"] ?? row[keys[0]]),
+        team: isViewerTeamName(rawTeam) ? VIEWER_TEAM_KEY : resolveTeam(rawTeam, teamRows, lookup),
+        side: clean(row["サイド"] ?? row[keys[4]]).toUpperCase(),
         tier: tierFrom(rawTeam),
-        champion: clean(row["BAN/PICK集計用名"]) || clean(row["チャンピオン名"]),
-        type: "BAN"
+        type,
+        bpOrder: numberValue(row["BP順"] ?? row[keys[6]]),
+        phase: clean(row["フェーズ"] ?? row[keys[7]]),
+        role: clean(row["ロール"] ?? row[keys[8]]).toUpperCase(),
+        champion: clean(row["BAN/PICK集計用名"] ?? row[keys[12]]) || clean(row["チャンピオン名"] ?? row[keys[11]])
       };
     })
-    .filter((row) => row.champion);
+    .filter((row) => row.matchId && row.champion && (row.type === "BAN" || row.type === "PICK"));
 }
 
 function buildChampionIcons(rows) {

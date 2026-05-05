@@ -46,7 +46,7 @@ h1, h2, h3, h4, p { margin-top: 0; }
 
 .topbar {
   display: flex;
-  align-items: end;
+  align-items: start;
   justify-content: space-between;
   gap: 20px;
   padding: 28px clamp(16px, 4vw, 48px) 16px;
@@ -66,10 +66,18 @@ h1, h2, h3, h4, p { margin-top: 0; }
 }
 
 .data-source-status {
-  margin: 6px 0 0;
+  margin: 0;
   color: var(--muted);
   font-size: 0.78rem;
   font-weight: 700;
+}
+
+.data-source-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: fit-content;
+  margin-top: 6px;
 }
 
 .header-description {
@@ -201,22 +209,6 @@ body.filter-collapsed .app-layout {
 }
 
 body.filter-collapsed .filter-panel {
-  position: fixed;
-  top: 86px;
-  right: clamp(16px, 4vw, 48px);
-  z-index: 21;
-  display: block;
-  min-width: 0;
-  width: auto;
-  border: none;
-  background: transparent;
-  box-shadow: none;
-  padding: 0;
-}
-
-body.filter-collapsed .filter-panel .eyebrow,
-body.filter-collapsed .filter-panel .filter-heading-row h2,
-body.filter-collapsed .filter-panel .toolbar {
   display: none;
 }
 
@@ -336,8 +328,14 @@ body.filter-collapsed .filter-panel .toolbar {
 .nav-stack {
   display: grid;
   justify-items: end;
-  gap: 8px;
+  gap: 10px;
+  margin-top: 0;
   min-width: 0;
+}
+
+.nav-filter-toggle {
+  justify-self: end;
+  margin-top: -2px;
 }
 
 .view-tabs, .display-switch {
@@ -576,14 +574,7 @@ body.filter-collapsed .filter-panel .toolbar {
 }
 
 .fc .is-ltk-today .fc-daygrid-day-number {
-  display: inline-grid;
-  place-items: center;
-  min-width: 28px;
-  height: 28px;
-  margin: 4px;
-  border-radius: 999px;
-  background: rgba(20, 184, 166, 0.94);
-  color: #ffffff;
+  color: #5eead4;
   font-weight: 950;
 }
 
@@ -1161,7 +1152,14 @@ body.filter-collapsed .filter-panel .toolbar {
 
 .player-stats-table th:first-child,
 .player-stats-table td:first-child {
-  min-width: 260px;
+  width: 210px;
+  min-width: 210px;
+}
+
+.player-stats-table th:nth-child(2),
+.player-stats-table td:nth-child(2) {
+  width: 100px;
+  min-width: 100px;
 }
 
 .player-stats-table th {
@@ -1255,7 +1253,7 @@ body.filter-collapsed .filter-panel .toolbar {
 
 .ranking-list h4 {
   margin: 0;
-  padding: 10px 12px;
+  padding: 8px 12px;
   background: var(--surface-soft);
 }
 
@@ -1296,9 +1294,14 @@ body.filter-collapsed .filter-panel .toolbar {
   grid-template-columns: 28px minmax(140px, 1fr) minmax(48px, auto);
   align-items: center;
   gap: 6px;
-  min-height: 60px;
+  min-height: 56px;
   border-top: 1px solid var(--line);
-  padding: 8px 10px;
+  padding: 7px 10px;
+}
+
+.ranking-list:not(.champion-ranking-list) .ranking-column-head,
+.ranking-list:not(.champion-ranking-list) .ranking-row {
+  grid-template-columns: 24px minmax(190px, 260px) 68px;
 }
 
 .ranking-row small {
@@ -1326,11 +1329,11 @@ body.filter-collapsed .filter-panel .toolbar {
 
 .ranking-person-card {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
+  grid-template-columns: 38px minmax(0, 1fr);
   grid-template-rows: auto auto;
   align-items: center;
   column-gap: 8px;
-  row-gap: 3px;
+  row-gap: 2px;
   min-width: 0;
 }
 
@@ -1341,11 +1344,11 @@ body.filter-collapsed .filter-panel .toolbar {
 .ranking-person-card .ranking-avatar {
   grid-column: 1;
   grid-row: 1 / 3;
-  width: 42px;
-  height: 42px;
+  width: 38px;
+  height: 38px;
   border: 2px solid var(--team);
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
-  font-size: 0.9rem;
+  font-size: 0.86rem;
 }
 
 .ranking-person-card .ranking-player strong {
@@ -1740,6 +1743,131 @@ th {
   margin: 12px 0 10px;
 }
 
+.game-detail-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.game-detail-winner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bp-flow {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: linear-gradient(90deg, rgba(15, 23, 42, 0.98), rgba(17, 24, 39, 0.98));
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
+.bp-flow h4 {
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  margin: 0;
+  padding: 8px 12px;
+  text-transform: uppercase;
+}
+
+.bp-flow-board {
+  display: grid;
+}
+
+.bp-flow-row {
+  display: grid;
+  grid-template-columns: 116px minmax(0, 1fr);
+  align-items: stretch;
+  min-height: 64px;
+  border-left: 4px solid var(--team);
+}
+
+.bp-flow-row + .bp-flow-row {
+  border-top: 1px solid var(--line);
+}
+
+.bp-flow-team {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 4px;
+  border-right: 1px solid var(--line);
+  background: rgba(2, 6, 23, 0.35);
+  padding: 8px;
+  text-align: center;
+}
+
+.bp-flow-logo {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.bp-flow-team strong {
+  font-size: 0.9rem;
+}
+
+.bp-flow-cells {
+  display: grid;
+  grid-template-columns: repeat(20, 42px);
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 8px 10px;
+}
+
+.bp-flow-cell {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.bp-flow-cell .champ-icon,
+.bp-flow-cell .champ-fallback {
+  width: 38px;
+  height: 38px;
+  border-radius: 4px;
+}
+
+.bp-flow-cell.is-ban .champ-icon,
+.bp-flow-cell.is-ban .champ-fallback {
+  filter: grayscale(0.35) brightness(0.72);
+  opacity: 0.88;
+}
+
+.bp-flow-cell.is-ban::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 4px;
+  background: rgba(2, 6, 23, 0.32);
+  box-shadow: inset 0 0 0 1px rgba(248, 250, 252, 0.12);
+  pointer-events: none;
+}
+
+.bp-flow-cell small {
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.bp-flow-empty {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
 .game-detail-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1909,16 +2037,7 @@ th {
   }
 
   body.filter-collapsed .filter-panel {
-    display: block;
-    top: 14px;
-    right: 14px;
-    width: auto;
-    max-height: none;
-    overflow: visible;
-    border: none;
-    background: transparent;
-    box-shadow: none;
-    padding: 0;
+    display: none;
   }
 
   .live-now-panel {
@@ -1967,6 +2086,12 @@ th {
 
   .nav-stack {
     justify-items: stretch;
+    margin-top: 0;
+  }
+
+  .nav-filter-toggle {
+    justify-self: end;
+    margin-top: 0;
   }
 
   .aux-tabs {

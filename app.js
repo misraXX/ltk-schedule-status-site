@@ -851,8 +851,8 @@ function draftActionsForTeam(result, rows, teamKey) {
   const sourceActions = bpRows
     .filter((row) => row.matchId === result.id && row.team === teamKey)
     .sort((a, b) => (a.bpOrder || 999) - (b.bpOrder || 999));
-  const banActions = sourceActions.filter((row) => row.type === "BAN").map((row, index) => draftAction(row, slots.BAN[index] || row.bpOrder || index + 1, index));
-  let pickActions = sourceActions.filter((row) => row.type === "PICK").map((row, index) => draftAction(row, slots.PICK[index] || row.bpOrder || index + 1, index));
+  const banActions = sourceActions.filter((row) => row.type === "BAN").map((row, index) => draftAction(row, row.bpOrder || slots.BAN[index] || index + 1, index));
+  let pickActions = sourceActions.filter((row) => row.type === "PICK").map((row, index) => draftAction(row, row.bpOrder || slots.PICK[index] || index + 1, index));
   if (!pickActions.length) {
     pickActions = ROLE_ORDER
       .map((role) => rows.find((row) => row.team === teamKey && row.role === role))
@@ -1038,7 +1038,7 @@ function playerStatsColumns() {
     { key: "assists", label: "A", numeric: true, value: (item) => item.avgAssists, render: (item) => formatDecimal(item.avgAssists) },
     { key: "kp", label: "KP", numeric: true, value: (item) => item.killParticipation, render: (item) => percent(item.killParticipation) },
     { key: "cs15", label: "CS@15", numeric: true, value: (item) => item.avgCs15, render: (item) => item.avgCs15 == null ? "-" : formatDecimal(item.avgCs15) },
-    { key: "dpm", label: "DPM", numeric: true, value: (item) => item.dpm, render: (item) => item.dpm == null ? "-" : formatNumber(item.dpm) },
+    { key: "dpm", label: "DPM", numeric: true, value: (item) => item.dpm, render: (item) => item.dpm == null ? "-" : formatDecimal(item.dpm) },
     { key: "damageShare", label: "DMG%", numeric: true, value: (item) => item.damageShare, render: (item) => percent(item.damageShare) },
     { key: "championCount", label: "Champ", numeric: true, value: (item) => item.championCount, render: (item) => formatDecimal(item.championCount) }
   ];
@@ -1116,6 +1116,12 @@ function leagueTier(tier) {
   const shell = document.createElement("div");
   shell.className = "table-shell league-shell";
   shell.append(table);
+  shell.addEventListener("click", (event) => {
+    const target = event.target instanceof Element ? event.target : event.target?.parentElement;
+    const button = target?.closest("[data-league-result-ids]");
+    if (!button) return;
+    openLeagueResults(button.dataset.leagueResultIds);
+  });
   if (!rows.length) {
     const note = document.createElement("p");
     note.className = "muted league-note";
@@ -1140,10 +1146,12 @@ function buildLeagueSummary(rows, teamKeys, columnKeys = teamKeys) {
       byMatchupDate.set(key, {
         date: row.date,
         teams: [row.left, row.right].sort(),
-        records: new Map([[row.left, { wins: 0, losses: 0 }], [row.right, { wins: 0, losses: 0 }]])
+        records: new Map([[row.left, { wins: 0, losses: 0 }], [row.right, { wins: 0, losses: 0 }]]),
+        results: []
       });
     }
     const item = byMatchupDate.get(key);
+    item.results.push(row);
     item.records.get(row.winner).wins += 1;
     item.records.get(row.winner).losses += 0;
     item.records.get(loser).losses += 1;
@@ -1165,11 +1173,49 @@ function leagueCell(rowTeam, colTeam, summary) {
       <div class="league-records">
         ${entries.map((item) => {
           const record = item.records.get(rowTeam) || { wins: 0, losses: 0 };
-          return `<span class="${record.wins > record.losses ? "is-win" : record.wins < record.losses ? "is-loss" : ""}">${record.wins}-${record.losses} (${shortDate(item.date)})</span>`;
+          const resultIds = item.results.map((result) => result.id).join(",");
+          return `<button type="button" class="league-record-button ${record.wins > record.losses ? "is-win" : record.wins < record.losses ? "is-loss" : ""}" data-league-result-ids="${resultIds}">${record.wins}-${record.losses} (${shortDate(item.date)})</button>`;
         }).join("")}
       </div>
     </td>
   `;
+}
+
+function openLeagueResults(resultIdsValue) {
+  const ids = String(resultIdsValue || "").split(",").map((id) => id.trim()).filter(Boolean);
+  const results = ids.map((id) => scrimResults.find((result) => result.id === id)).filter(Boolean);
+  if (!results.length) return;
+  const first = results[0];
+  const item = {
+    id: `league_${ids.join("_")}`,
+    date: first.date,
+    eventTime: first.eventTime || "",
+    day: "RESULT",
+    match: gameRangeLabel(results),
+    type: first.type || "スクリム",
+    stage: "RESULT",
+    matchName: first.matchName || "スクリム",
+    tier: first.tier,
+    left: first.left,
+    right: first.right,
+    leftLabel: first.leftLabel,
+    rightLabel: first.rightLabel,
+    status: "completed",
+    results,
+    resultSource: true,
+    viewerMatch: results.some((result) => result.viewerMatch),
+    resultRecord: summarizeResults(results, first.left, first.right)
+  };
+  openMatch(item);
+}
+
+function gameRangeLabel(results) {
+  const labels = results
+    .map((result) => result.match)
+    .filter(Boolean);
+  if (!labels.length) return `${results.length}G`;
+  if (labels.length === 1) return labels[0];
+  return `${labels[0]}-${labels[labels.length - 1]}`;
 }
 
 function totalCell(teamKey, summary) {
@@ -1186,20 +1232,20 @@ function rankingTier(tier, rows) {
     return section;
   }
   section.append(
-    rankingList("KDA", rows, "kda", formatDecimal),
-    rankingList("K", rows, "avgKills", formatDecimal),
-    rankingList("D", rows, "avgDeaths", formatDecimal, "asc"),
-    rankingList("A", rows, "avgAssists", formatDecimal),
-    rankingList("キル関与率", rows, "killParticipation", percent),
-    rankingList("CS@15", rows.filter((item) => item.avgCs15 != null), "avgCs15", formatDecimal),
-    rankingList("DPM", rows.filter((item) => item.dpm != null), "dpm", formatNumber),
-    rankingList("ダメージ割合", rows, "damageShare", percent),
-    rankingList("使用チャンピオン数", rows, "championCount", formatDecimal)
+    rankingList("平均KDA", rows, "kda", formatDecimal, "desc", "KDA"),
+    rankingList("平均キル数", rows, "avgKills", formatDecimal, "desc", "K"),
+    rankingList("平均デス数", rows, "avgDeaths", formatDecimal, "asc", "D"),
+    rankingList("平均アシスト数", rows, "avgAssists", formatDecimal, "desc", "A"),
+    rankingList("キル関与率", rows, "killParticipation", percent, "desc", "KP"),
+    rankingList("15分時点のCS", rows.filter((item) => item.avgCs15 != null), "avgCs15", formatDecimal, "desc", "CS@15"),
+    rankingList("分間ダメージ", rows.filter((item) => item.dpm != null), "dpm", formatDecimal, "desc", "DPM"),
+    rankingList("ダメージ割合", rows, "damageShare", percent, "desc", "DMG%"),
+    rankingList("使用チャンピオン数", rows, "championCount", formatDecimal, "desc", "Champ")
   );
   return section;
 }
 
-function rankingList(title, rows, key, formatter, direction = "desc") {
+function rankingList(title, rows, key, formatter, direction = "desc", columnLabel = title) {
   const block = document.createElement("div");
   block.className = "ranking-list";
   block.innerHTML = `
@@ -1207,7 +1253,7 @@ function rankingList(title, rows, key, formatter, direction = "desc") {
     <div class="ranking-column-head">
       <span>#</span>
       <span>Player</span>
-      <span>${title}</span>
+      <span>${columnLabel}</span>
     </div>
   `;
   rows
@@ -1456,13 +1502,28 @@ function competitivePlayerMatches() {
 
 function matchDurationMinutes(matchId) {
   const match = scrimResults.find((row) => row.id === matchId);
-  if (!match?.time) return null;
-  const parts = String(match.time)
-    .split(":")
-    .map((part) => Number(part));
-  if (parts.length < 2 || parts.some((part) => !Number.isFinite(part))) return null;
+  return parseMatchDurationMinutes(match?.time);
+}
+
+function parseMatchDurationMinutes(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value > 0 && value < 1 ? value * 24 * 60 : value;
+  }
+  const raw = String(value).trim();
+  if (!raw || raw.toUpperCase() === "REMAKE") return null;
+  const numeric = Number(raw);
+  if (Number.isFinite(numeric)) {
+    return numeric > 0 && numeric < 1 ? numeric * 24 * 60 : numeric;
+  }
+  const parts = raw.split(":").map((part) => Number(part));
+  if (parts.length < 2 || parts.length > 3 || parts.some((part) => !Number.isFinite(part))) return null;
   if (parts.length === 2) return parts[0] + parts[1] / 60;
-  return (parts[0] * 60) + parts[1] + parts[2] / 60;
+
+  const [first, second, third] = parts;
+  if (third === 0 && first >= 10) return first + second / 60;
+  if (first === 0) return second + third / 60;
+  return first * 60 + second + third / 60;
 }
 
 function competitiveBpRows() {

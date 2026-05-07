@@ -1081,24 +1081,36 @@ body.filter-collapsed .filter-panel {
   justify-items: center;
 }
 
-.league-records span {
+.league-record-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-width: 82px;
   min-height: 30px;
+  border: 1px solid transparent;
   border-radius: 6px;
   background: var(--surface-soft);
   color: var(--text);
+  font: inherit;
   font-weight: 900;
+  cursor: pointer;
+  transition: border-color 0.16s ease, filter 0.16s ease, transform 0.16s ease;
 }
 
-.league-records .is-win {
+.league-record-button:hover,
+.league-record-button:focus-visible {
+  border-color: var(--accent);
+  filter: brightness(1.12);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.league-record-button.is-win {
   background: rgba(20, 184, 166, 0.12);
   color: #5eead4;
 }
 
-.league-records .is-loss {
+.league-record-button.is-loss {
   background: rgba(244, 63, 94, 0.12);
   color: #fb7185;
 }

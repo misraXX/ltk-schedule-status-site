@@ -1,4 +1,4 @@
-﻿import { loadLiveStreams, loadSiteData } from "./sheet-loader.js?v=20260503-83";
+﻿import { loadLiveStreams, loadSiteData } from "./sheet-loader.js?v=20260508-01";
 
 const VIEWER_OPPONENT_LABEL = "リスナー";
 const VIEWER_TEAM_KEY = "__LISTENER__";
@@ -23,11 +23,12 @@ let scrimResults = [];
 let teams = {};
 let liveStreams = [];
 let liveTimer = null;
+const narrowLayoutQuery = window.matchMedia("(max-width: 900px)");
 
 const state = {
   view: "calendar",
   calendarMode: window.matchMedia("(max-width: 760px)").matches ? "cards" : "full",
-  filterOpen: !window.matchMedia("(max-width: 900px)").matches,
+  filterOpen: !narrowLayoutQuery.matches,
   type: "",
   tier: "",
   keyword: "",
@@ -48,6 +49,7 @@ const elements = {
   filterPanel: document.querySelector("#filterPanel"),
   filterToggle: document.querySelector("#filterToggle"),
   headerStatus: document.querySelector("#headerStatus"),
+  liveNowPanel: document.querySelector(".live-now-panel"),
   liveNowList: document.querySelector("#liveNowList"),
   liveNowStatus: document.querySelector("#liveNowStatus"),
   typeFilter: document.querySelector("#typeFilter"),
@@ -220,7 +222,7 @@ function bindEvents() {
     });
   });
 
-  document.querySelectorAll("[name='champTier']").forEach((input) => {
+  document.querySelectorAll("[name='champTier'], [name='champRole']").forEach((input) => {
     input.addEventListener("change", renderChampions);
   });
 
@@ -255,6 +257,10 @@ function bindEvents() {
   elements.closeDialog.addEventListener("click", () => elements.dialog.close());
   elements.dialog.addEventListener("click", (event) => {
     if (event.target === elements.dialog) elements.dialog.close();
+  });
+  narrowLayoutQuery.addEventListener("change", (event) => {
+    state.filterOpen = !event.matches;
+    applyFilterPanelState();
   });
 }
 
@@ -433,7 +439,7 @@ function calendarEventTitle(item) {
     const games = item.resultRecord?.games ? ` ${item.resultRecord.games}G` : "";
     return `${viewerHomeLabel(item)} vs ${VIEWER_OPPONENT_LABEL}${games}`;
   }
-  const base = `${item.left || "TBD"} vs ${item.right || "TBD"}`;
+  const base = `${teamShortName(item.left)} vs ${teamShortName(item.right)}`;
   if (!item.resultRecord) return base;
   return `${base} ${item.resultRecord.leftWins}-${item.resultRecord.rightWins}`;
 }
@@ -608,7 +614,8 @@ function calendarTeamLabel(teamKey, tier) {
 
 function calendarTeamIcon(teamKey) {
   const team = teams[teamKey];
-  if (!team?.logo) return `<span class="fc-team-mark">${teamKey || "?"}</span>`;
+  if (!team) return "";
+  if (!team.logo) return `<span class="fc-team-mark">${team.mark || teamKey || "?"}</span>`;
   return `<img class="fc-team-mark" src="${team.logo}" alt="${team.name}">`;
 }
 
@@ -1259,7 +1266,7 @@ function rankingList(title, rows, key, formatter, direction = "desc", columnLabe
   rows
     .slice()
     .sort((a, b) => direction === "asc" ? a[key] - b[key] : b[key] - a[key])
-    .slice(0, 5)
+    .slice(0, 3)
     .forEach((item, index) => {
       const row = document.createElement("div");
       row.className = "ranking-row";
@@ -1278,7 +1285,13 @@ function rankingList(title, rows, key, formatter, direction = "desc", columnLabe
 
 function renderChampions() {
   const tiers = selectedChampionTiers();
-  const rows = buildChampionStats().filter((item) => tiers.includes(item.tier));
+  const roles = selectedChampionRoles();
+  const tierRows = buildChampionStats().filter((item) => tiers.includes(item.tier));
+  const rolePickRows = tierRows.filter((item) => item.type === "PICK" && roles.includes(item.role));
+  const roleChampions = new Set(rolePickRows.map((item) => item.champion));
+  const rows = roles.length === ROLE_ORDER.length
+    ? tierRows
+    : [...rolePickRows, ...tierRows.filter((item) => item.type === "BAN" && roleChampions.has(item.champion))];
   const merged = mergeChampionStats(rows);
   const filtered = filterByKeyword(merged, (item) => `${item.champion} ${item.roles.join(" ")}`);
   elements.championStats.replaceChildren(
@@ -1322,7 +1335,8 @@ function championRankingList(title, rows, key, formatter, detailMode, note = "")
 function openChampionDetail(item, title, mode) {
   elements.dialogMeta.textContent = `Champion / ${title}`;
   elements.dialogTitle.textContent = item.champion;
-  const wins = competitivePlayerMatches().filter((row) => row.champion === item.champion && row.result === "WIN");
+  const roles = selectedChampionRoles();
+  const wins = competitivePlayerMatches().filter((row) => row.champion === item.champion && row.result === "WIN" && roles.includes(row.role));
   const body = document.createElement("section");
   body.className = "champion-detail";
   body.innerHTML = `
@@ -1410,11 +1424,22 @@ function buildPlayerStats() {
 }
 
 function buildChampionStats() {
-  const picks = competitivePlayerMatches().map((row) => ({ matchId: row.matchId, tier: row.tier, champion: row.champion, type: "PICK", win: row.result === "WIN", role: row.role }));
+  const picks = competitivePlayerMatches()
+    .filter((row) => !isNoBanChampion(row.champion))
+    .map((row) => ({ matchId: row.matchId, tier: row.tier, champion: row.champion, type: "PICK", win: row.result === "WIN", role: row.role }));
   const bans = competitiveBpRows()
-    .filter((row) => row.type === "BAN")
+    .filter((row) => row.type === "BAN" && !isNoBanChampion(row.champion))
     .map((row) => ({ matchId: row.matchId, tier: row.tier, champion: row.champion, type: "BAN", win: false, role: "" }));
   return [...picks, ...bans];
+}
+
+function isNoBanChampion(champion) {
+  const key = String(champion || "")
+    .normalize("NFKC")
+    .trim()
+    .toUpperCase()
+    .replace(/[\s_\-・ー]/g, "");
+  return ["NOBAN", "BANなし", "BAN無し", "バンなし", "バン無し", "なし", "無し"].includes(key);
 }
 
 function mergeChampionStats(rows) {
@@ -1484,8 +1509,7 @@ function isViewerScrim(item) {
     || item?.right === VIEWER_TEAM_KEY
     || item?.left === VIEWER_TEAM_KEY
     || item?.type === "対視聴者"
-    || item?.matchName === "対視聴者"
-    || (!item?.left || !item?.right) && item?.resultSource;
+    || item?.matchName === "対視聴者";
 }
 
 function competitiveScrimResults() {
@@ -1547,6 +1571,11 @@ function playersForSchedule(item) {
 
 function selectedChampionTiers() {
   return [...document.querySelectorAll("[name='champTier']:checked")].map((input) => input.value);
+}
+
+function selectedChampionRoles() {
+  const roles = [...document.querySelectorAll("[name='champRole']:checked")].map((input) => input.value);
+  return roles.length ? roles : ROLE_ORDER;
 }
 
 function filterByKeyword(items, selector) {
@@ -1631,7 +1660,7 @@ function leagueRowHeader(teamKey, tier) {
 
 function dialogTeamBlock(teamKey, tier) {
   const team = teams[teamKey];
-  if (!team) return `<div class="dialog-team">TBD</div>`;
+  if (!team) return dialogTextTeamBlock(teamKey, tier);
   return `
     <div class="dialog-team" style="--team:${team.accent}">
       ${teamLogo(teamKey, "dialog-team-logo")}

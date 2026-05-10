@@ -513,11 +513,17 @@ body.filter-collapsed .filter-panel {
 }
 
 .full-calendar-shell {
+  max-width: 100%;
+  overflow-x: auto;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--bg-panel);
   padding: 14px;
   box-shadow: var(--shadow);
+}
+
+.full-calendar-shell .fc {
+  min-width: 760px;
 }
 
 .fc {
@@ -770,7 +776,7 @@ body.filter-collapsed .filter-panel {
 
 .calendar-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
   gap: 16px;
 }
 
@@ -987,6 +993,7 @@ body.filter-collapsed .filter-panel {
 
 .league-shell {
   max-width: 100%;
+  overflow-x: auto;
   box-shadow: none;
 }
 
@@ -1145,7 +1152,7 @@ body.filter-collapsed .filter-panel {
 
 .ranking-tier {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr));
   gap: 12px;
 }
 
@@ -2027,6 +2034,40 @@ th {
   background: #111827;
 }
 
+@media (max-width: 1200px) {
+  .topbar {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .nav-stack {
+    width: 100%;
+    justify-items: start;
+  }
+
+  .main-tabs {
+    width: 100%;
+  }
+
+  .main-tabs .tab-button {
+    flex: 1 1 128px;
+  }
+
+  .app-layout {
+    grid-template-columns: minmax(210px, 250px) minmax(0, 1fr) minmax(190px, 230px);
+    gap: 16px;
+  }
+
+  .league-table th:first-child,
+  .league-table td:first-child {
+    min-width: 390px;
+  }
+
+  .league-row-team {
+    grid-template-columns: 52px 142px minmax(160px, 1fr);
+  }
+}
+
 @media (max-width: 900px) {
   .app-layout {
     grid-template-columns: 1fr;
@@ -2054,10 +2095,24 @@ th {
 
   .live-now-panel {
     position: static;
+    order: -1;
+  }
+
+  .live-now-list {
+    max-height: min(360px, 54vh);
+  }
+
+  .main-content {
+    overflow: visible;
   }
 
   .ranking-tier, .result-summary {
     grid-template-columns: 1fr;
+  }
+
+  .ranking-list:not(.champion-ranking-list) .ranking-column-head,
+  .ranking-list:not(.champion-ranking-list) .ranking-row {
+    grid-template-columns: 24px minmax(0, 1fr) 62px;
   }
 
   .roster-grid {
@@ -2066,9 +2121,22 @@ th {
 }
 
 @media (max-width: 760px) {
+  main {
+    padding-inline: 10px;
+  }
+
+  h1 {
+    font-size: clamp(1.55rem, 9vw, 2.2rem);
+  }
+
   .topbar, .section-heading {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .topbar {
+    gap: 14px;
+    padding: 20px 10px 12px;
   }
 
   .filter-toggle-button {
@@ -2111,7 +2179,27 @@ th {
   }
 
   .tab-button, .mode-button {
-    flex: 1;
+    flex: 1 1 calc(50% - 8px);
+    min-height: 38px;
+    padding-inline: 10px;
+  }
+
+  .aux-tabs .tab-button {
+    flex: 0 1 auto;
+  }
+
+  .live-now-panel,
+  .filter-panel,
+  .full-calendar-shell,
+  .league-tier,
+  .ranking-tier,
+  .table-shell,
+  .info-page {
+    border-radius: 7px;
+  }
+
+  .calendar-grid {
+    gap: 12px;
   }
 
   .match-row, .dialog-summary {
@@ -2122,7 +2210,84 @@ th {
     text-align: center;
   }
 
+  .dialog-team {
+    min-height: 88px;
+    padding: 12px;
+  }
+
+  .result-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .champion-detail-list article {
+    grid-template-columns: 30px minmax(0, 1fr);
+  }
+
+  .champion-detail-list article > b {
+    grid-column: 1 / -1;
+    text-align: right;
+  }
+
   .roster-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .app-layout {
+    gap: 12px;
+  }
+
+  .filter-heading-row {
+    align-items: center;
+  }
+
+  .live-now-card {
+    padding: 9px;
+  }
+
+  .schedule-card .fc-match-event {
+    min-height: 84px;
+  }
+
+  .schedule-card .fc-match-title {
+    font-size: 0.9rem;
+  }
+
+  .fc-match-main {
+    grid-template-columns: 1fr;
+    gap: 4px;
+    padding: 8px;
+  }
+
+  .fc-event-vs {
+    line-height: 1;
+  }
+
+  .league-tier {
+    padding: 10px;
+  }
+
+  .ranking-list:not(.champion-ranking-list) .ranking-column-head,
+  .ranking-list:not(.champion-ranking-list) .ranking-row,
+  .ranking-column-head,
+  .ranking-row,
+  .champion-ranking-row {
+    grid-template-columns: 22px minmax(0, 1fr) 58px;
+    padding-inline: 8px;
+  }
+
+  .ranking-person-card {
+    grid-template-columns: 34px minmax(0, 1fr);
+  }
+
+  .ranking-person-card .ranking-avatar {
+    width: 34px;
+    height: 34px;
+  }
+
+  .check-filters {
+    align-items: stretch;
+    flex-direction: column;
   }
 }

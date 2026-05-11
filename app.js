@@ -71,10 +71,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   moveFilterPanel();
   applyFilterPanelState();
   if (!window.FullCalendar) state.calendarMode = "cards";
+  bindEvents();
   await hydrateData();
   await hydrateLiveStreams();
   startLiveRefresh();
-  bindEvents();
   applyCalendarMode();
   render();
 });

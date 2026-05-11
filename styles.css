@@ -2073,15 +2073,17 @@ th {
     grid-template-columns: 1fr;
   }
 
+  body.filter-collapsed .app-layout {
+    grid-template-columns: 1fr;
+  }
+
   .filter-panel {
-    position: fixed;
-    top: 76px;
-    right: 14px;
-    z-index: 20;
+    position: static;
+    order: 0;
     display: none;
-    width: min(320px, calc(100vw - 28px));
-    max-height: calc(100vh - 96px);
-    overflow-y: auto;
+    width: auto;
+    max-height: none;
+    overflow: visible;
     background: rgba(15, 23, 42, 0.96);
   }
 
@@ -2103,6 +2105,7 @@ th {
   }
 
   .main-content {
+    order: 1;
     overflow: visible;
   }
 

@@ -1,4 +1,4 @@
-﻿const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzjVYyvZ-x_LMo4Jl3261MRbAuBXrt7ZtgtzTAKT_mcU0bHVK7LiPKR13TdEgi30xY/exec";
+const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzjVYyvZ-x_LMo4Jl3261MRbAuBXrt7ZtgtzTAKT_mcU0bHVK7LiPKR13TdEgi30xY/exec";
 
 const TEAM_LOGOS = {
   DD: "./image/dd_emblem.png",
@@ -18,22 +18,21 @@ const VIEWER_TEAM_KEY = "__LISTENER__";
 
 export async function loadSiteData(options = {}) {
   const sheets = await fetchSiteSheets(options);
-  const teamRows = sheets["繧ｵ繧､繝・繝√・繝繝槭せ繧ｿ"] || [];
-  const scheduleRows = sheets["繧ｵ繧､繝・莠亥ｮ・] || [];
-  const profileRows = sheets["繧ｵ繧､繝・驕ｸ謇九・繝ｭ繝輔ぅ繝ｼ繝ｫ"] || [];
-  const resultRows = sheets["蟇ｾ謌ｦ邨先棡縺ｾ縺ｨ繧・] || [];
-  const playerRows = sheets["繝ｪ繧ｶ繝ｫ繝郁ｩｳ邏ｰ"] || sheets["繧ｵ繧､繝・隧ｦ蜷医・繝ｬ繧､繝､繝ｼ螳溽ｸｾ"] || [];
-  const bpSourceRows = sheets["BP隧ｳ邏ｰ"] || sheets["繧ｵ繧､繝・BP螳溽ｸｾ"] || [];
-  const championRows = sheets["繝√Ε繝ｳ繝斐が繝ｳ繧｢繧､繧ｳ繝ｳ"] || [];
+  const teamRows = sheets["サイト_チームマスタ"] || [];
+  const scheduleRows = sheets["サイト_予定"] || [];
+  const profileRows = sheets["サイト_選手プロフィール"] || [];
+  const resultRows = sheets["対戦結果まとめ"] || [];
+  const playerRows = sheets["リザルト詳細"] || sheets["サイト_試合プレイヤー実績"] || [];
+  const bpSourceRows = sheets["BP詳細"] || sheets["サイト_BP実績"] || [];
+  const championRows = sheets["チャンピオンアイコン"] || [];
   const lookup = buildTeamLookup(teamRows);
-  const teams = buildTeams(teamRows);
 
   return {
-    teams,
+    teams: buildTeams(teamRows),
     schedules: buildSchedules(scheduleRows),
     scrimResults: buildScrimResults(resultRows, teamRows, lookup),
     participants: buildParticipants(profileRows, teamRows, lookup),
-    playerMatches: buildPlayerMatchesStable(playerRows, teamRows, lookup),
+    playerMatches: buildPlayerMatches(playerRows, teamRows, lookup),
     bpRows: buildBpRows(bpSourceRows, teamRows, lookup),
     championIcons: buildChampionIcons(championRows)
   };
@@ -103,7 +102,6 @@ function fetchJsonp(url) {
       cleanup();
       resolve(payload);
     };
-
     script.onerror = () => {
       cleanup();
       reject(new Error("site-api: script load failed"));
@@ -116,31 +114,27 @@ function fetchJsonp(url) {
 }
 
 function buildTeams(rows) {
-  return Object.fromEntries(
-    rows
-      .filter((row) => clean(row.team_key))
-      .map((row) => {
-        const key = clean(row.team_key);
-        return [
-          key,
-          {
-            key,
-            name: TEAM_NAMES[key] || compactTeamName(row.team_name),
-            fullName: compactTeamName(row.team_name),
-            accent: clean(row.accent) || "#64748b",
-            mark: key,
-            logo: TEAM_LOGOS[key] || ""
-          }
-        ];
-      })
-  );
+  return Object.fromEntries(rows
+    .filter((row) => clean(row.team_key))
+    .map((row) => {
+      const key = clean(row.team_key);
+      return [key, {
+        key,
+        name: TEAM_NAMES[key] || compactTeamName(row.team_name),
+        fullName: compactTeamName(row.team_name),
+        accent: clean(row.accent) || "#64748b",
+        mark: clean(row.logo_text) || key,
+        logo: TEAM_LOGOS[key] || clean(row.logo_url)
+      }];
+    }));
 }
 
 function buildSchedules(rows) {
   return rows
     .filter((row) => clean(row.schedule_id))
     .map((row) => {
-      const right = clean(row.right_team_key);
+      const rawLeft = clean(row.left_team_key);
+      const rawRight = clean(row.right_team_key);
       return {
         id: clean(row.schedule_id),
         date: dateValue(row.event_date),
@@ -152,15 +146,13 @@ function buildSchedules(rows) {
         type: clean(row.match_type),
         stage: clean(row.stage) || "GROUP",
         tier: tierValue(row.tier),
-        left: clean(row.left_team_key),
-        right: isViewerTeamName(right) ? VIEWER_TEAM_KEY : right,
+        left: isViewerTeamName(rawLeft) ? VIEWER_TEAM_KEY : rawLeft,
+        right: isViewerTeamName(rawRight) ? VIEWER_TEAM_KEY : rawRight,
         blue: clean(row.blue_team_key),
         red: clean(row.red_team_key),
         status: clean(row.status) || "scheduled",
-        linkedResultIds: clean(row.linked_result_ids)
-          .split(/[,\n縲・ｼ珪+/u)
-          .map((item) => item.trim())
-          .filter(Boolean)
+        linkedResultIds: clean(row.linked_result_ids).split(/[,\n]+/).map((item) => item.trim()).filter(Boolean),
+        viewerMatch: isViewerTeamName(rawLeft) || isViewerTeamName(rawRight)
       };
     });
 }
@@ -168,165 +160,86 @@ function buildSchedules(rows) {
 function buildParticipants(rows, teamRows, lookup) {
   return rows
     .map((row) => ({
-      team: resolveTeam(row["繝√・繝蜷・], teamRows, lookup),
-      tier: tierValue(row["髫守ｴ・]),
-      role: clean(row["繝ｭ繝ｼ繝ｫ"]).toUpperCase(),
-      name: clean(row["蜷榊燕"]),
-      org: clean(row["謇螻・]),
+      team: resolveTeam(row["チーム名"], teamRows, lookup),
+      tier: tierValue(row["階級"]),
+      role: clean(row["ロール"]).toUpperCase(),
+      name: clean(row["名前"]),
+      org: clean(row["所属"]),
       x: clean(row["X URL"]),
-      youtube: clean(row["YouTube繝√Ε繝ｳ繝阪Ν"]),
-      twitch: clean(row["Twitch繝√Ε繝ｳ繝阪Ν"]),
-      icon: clean(row["繧｢繧､繧ｳ繝ｳ"])
+      youtube: clean(row["YouTubeチャンネル"]),
+      twitch: clean(row["Twitchチャンネル"]),
+      icon: clean(row["アイコン"])
     }))
     .filter((row) => row.team && row.name);
 }
 
-function buildPlayerMatchesStable(rows, teamRows, lookup) {
-  const keys = inferPlayerMatchKeys(rows);
-  if (!keys.matchId) return [];
-  return rows
-    .map((row) => {
-      const rawTeam = row[keys.team];
-      return {
-        matchId: clean(row[keys.matchId]),
-        team: isViewerTeamName(rawTeam) ? VIEWER_TEAM_KEY : resolveTeam(rawTeam, teamRows, lookup),
-        tier: tierFrom(rawTeam),
-        role: clean(row[keys.role]).toUpperCase(),
-        name: clean(row[keys.name]),
-        summoner: clean(row[keys.summoner]),
-        champion: clean(row[keys.champion]),
-        result: clean(row[keys.result]).toUpperCase(),
-        kills: numberValue(row.K ?? row[keys.kills]),
-        deaths: numberValue(row.D ?? row[keys.deaths]),
-        assists: numberValue(row.A ?? row[keys.assists]),
-        damage: numberValue(row[keys.damage]),
-        cs15: numberValue(row[keys.cs15]),
-        gold: numberValue(row[keys.gold])
-      };
-    })
-    .filter((row) => row.matchId && row.team && (row.name || row.summoner || row.champion));
-}
-
-function inferPlayerMatchKeys(rows) {
-  const sample = rows.find((row) => {
-    const keys = Object.keys(row);
-    return keys.length >= 16 && row.K !== undefined && row.D !== undefined && row.A !== undefined;
-  }) || rows.find((row) => Object.keys(row).length >= 12) || {};
-  const keys = Object.keys(sample);
-  const damageKey = keys.find((key, index) => index > 13 && numberValue(sample[key]) >= 1000) || keys[15];
-  const damageIndex = keys.indexOf(damageKey);
-  const cs15Key = keys.find((key) => clean(key).includes("15") && clean(key).toUpperCase().includes("CS"));
-  return {
-    matchId: keys[0],
-    team: keys[3],
-    result: keys[5],
-    role: keys[6],
-    name: keys[7],
-    summoner: keys[8],
-    champion: keys[9],
-    kills: keys.find((key) => key === "K") || keys[11],
-    deaths: keys.find((key) => key === "D") || keys[12],
-    assists: keys.find((key) => key === "A") || keys[13],
-    damage: damageKey,
-    cs15: cs15Key || keys[damageIndex + 3] || keys[damageIndex + 2] || keys[damageIndex + 1],
-    gold: keys[keys.length - 1]
-  };
-}
-
 function buildScrimResults(rows, teamRows, lookup) {
   return rows
-    .filter((row) => clean(row["隧ｦ蜷・D"]))
+    .filter((row) => clean(row["試合ID"]))
     .map((row) => {
-      const rawLeft = row["繝√・繝1蜷・"];
-      const left = resolveTeam(rawLeft, teamRows, lookup);
-      const rawRight = row["繝√・繝2蜷・];
-      const rawWinner = row["蜍晏茜繝√・繝"];
-      const right = resolveTeam(rawRight, teamRows, lookup);
-      const winner = resolveTeam(rawWinner, teamRows, lookup);
+      const rawLeft = row["チーム1名"];
+      const rawRight = row["チーム2名"];
+      const rawWinner = row["勝利チーム"];
+      const left = resolveTeam(rawLeft, teamRows, lookup) || compactTeamName(rawLeft);
+      const right = resolveTeam(rawRight, teamRows, lookup) || compactTeamName(rawRight);
+      const winner = resolveTeam(rawWinner, teamRows, lookup) || compactTeamName(rawWinner);
       const viewerMatch = isViewerTeamName(rawLeft) || isViewerTeamName(rawRight) || isViewerTeamName(rawWinner);
+      const matchKind = clean(row["スクリム/本番"]) || "スクリム";
+
       return {
-        id: clean(row["隧ｦ蜷・D"]),
-        date: dateValue(row["隧ｦ蜷域律"]),
-        matchName: viewerMatch ? "蟇ｾ隕冶・閠・ : "繧ｹ繧ｯ繝ｪ繝",
+        id: clean(row["試合ID"]),
+        date: dateValue(row["試合日"]),
+        matchName: viewerMatch ? "対視聴者" : matchKind,
         day: "RESULT",
-        match: `G${clean(row["隧ｦ蜷育分蜿ｷ"])}`,
-        type: viewerMatch ? "蟇ｾ隕冶・閠・ : "繧ｹ繧ｯ繝ｪ繝邨先棡",
+        match: `G${clean(row["試合番号"])}`,
+        type: viewerMatch ? "対視聴者" : `${matchKind}結果`,
         stage: "RESULT",
-        tier: tierFrom(row["繝√・繝1蜷・], row["繝√・繝2蜷・]),
-        left: isViewerTeamName(rawLeft) ? VIEWER_TEAM_KEY : left || compactTeamName(rawLeft),
-        right: isViewerTeamName(rawRight) ? VIEWER_TEAM_KEY : right || compactTeamName(rawRight),
-        leftLabel: compactTeamName(row["繝√・繝1蜷・]),
-        rightLabel: compactTeamName(row["繝√・繝2蜷・]),
-        winner: isViewerTeamName(rawWinner) ? VIEWER_TEAM_KEY : winner || compactTeamName(rawWinner),
-        time: timeValue(row["隧ｦ蜷域凾髢・]),
-        leftKda: clean(row["繝√・繝1KDA"]),
-        rightKda: clean(row["繝√・繝2KDA"]),
-        leftGold: numberValue(row["繝√・繝1繧ｴ繝ｼ繝ｫ繝・]),
-        rightGold: numberValue(row["繝√・繝2繧ｴ繝ｼ繝ｫ繝・]),
-        carry: clean(row["譛螟ｧ繝繝｡繝ｼ繧ｸ驕ｸ謇・]),
-        maxDamage: numberValue(row["譛螟ｧ繝繝｡繝ｼ繧ｸ"]),
-        eventId: clean(rowValue(row, 19)),
-        matchKind: clean(rowValue(row, 20)),
-        resultImageUrl: clean(rowValue(row, 17)),
-        bpImageUrl: clean(rowValue(row, 21)),
-        minute15ImageUrl: clean(rowValue(row, 22)),
-        videoUrl: clean(rowValue(row, 23)),
-        banMemo: clean(rowValue(row, 24)),
+        tier: tierFrom(rawLeft, rawRight),
+        left: isViewerTeamName(rawLeft) ? VIEWER_TEAM_KEY : left,
+        right: isViewerTeamName(rawRight) ? VIEWER_TEAM_KEY : right,
+        leftLabel: compactTeamName(rawLeft),
+        rightLabel: compactTeamName(rawRight),
+        winner: isViewerTeamName(rawWinner) ? VIEWER_TEAM_KEY : winner,
+        time: timeValue(row["試合時間"]),
+        leftKda: clean(row["チーム1KDA"]),
+        rightKda: clean(row["チーム2KDA"]),
+        leftGold: numberValue(row["チーム1ゴールド"]),
+        rightGold: numberValue(row["チーム2ゴールド"]),
+        carry: clean(row["最大ダメージ選手"]),
+        maxDamage: numberValue(row["最大ダメージ"]),
+        eventId: clean(row["イベントID"]),
+        matchKind,
+        resultImageUrl: clean(row["リザルト画像URL"]),
+        bpImageUrl: clean(row["BP画像URL"]),
+        minute15ImageUrl: clean(row["15分画像URL"]),
+        videoUrl: clean(row["動画URL"]),
+        banMemo: clean(row["BANメモ"]),
         status: "completed",
         viewerMatch
       };
     });
 }
 
-function rowValue(row, index) {
-  const keys = Object.keys(row);
-  return keys[index] === undefined ? "" : row[keys[index]];
-}
-
-function buildPlayerMatchesLoose(rows, teamRows, lookup) {
-  return rows
-    .map((row) => {
-      const rawTeam = row["郢昶・繝ｻ郢晢｣ｰ陷ｷ繝ｻ"];
-      return {
-        matchId: clean(row["髫ｧ・ｦ陷ｷ繝ｻD"]),
-        team: isViewerTeamName(rawTeam) ? VIEWER_TEAM_KEY : resolveTeam(rawTeam, teamRows, lookup),
-        tier: tierFrom(rawTeam),
-        role: clean(row["郢晢ｽｭ郢晢ｽｼ郢晢ｽｫ"]).toUpperCase(),
-        name: clean(row["郢晏干ﾎ樒ｹｧ・､郢晢ｽ､郢晢ｽｼ陷ｷ繝ｻ"]),
-        summoner: clean(row["郢ｧ・ｵ郢晢ｽ｢郢晉ｿｫ繝ｻ郢晞亂繝ｻ郢晢｣ｰ"]),
-        champion: clean(row["郢昶・ﾎ慕ｹ晢ｽｳ郢晄鱒縺檎ｹ晢ｽｳ陷ｷ繝ｻ"]),
-        result: clean(row["陷肴刋鬚ｨ"]).toUpperCase(),
-        kills: numberValue(row.K),
-        deaths: numberValue(row.D),
-        assists: numberValue(row.A),
-        damage: numberValue(row["郢敖郢晢ｽ｡郢晢ｽｼ郢ｧ・ｸ"]),
-        cs15: numberValue(row["15陋ｻ繝ｻS"]),
-        gold: numberValue(row["郢ｧ・ｴ郢晢ｽｼ郢晢ｽｫ郢昴・"])
-      };
-    })
-    .filter((row) => row.matchId && (row.name || row.summoner || row.champion));
-}
-
 function buildPlayerMatches(rows, teamRows, lookup) {
   return rows
-    .filter((row) => clean(row["隧ｦ蜷・D"]) && clean(row["繝励Ξ繧､繝､繝ｼ蜷・]))
+    .filter((row) => clean(row["試合ID"]) && (clean(row["プレイヤー名"]) || clean(row["サモナーネーム"]) || clean(row["チャンピオン名"])))
     .map((row) => {
-      const rawTeam = row["繝√・繝蜷・];
+      const rawTeam = row["チーム名"];
       return {
-        matchId: clean(row["隧ｦ蜷・D"]),
-        team: isViewerTeamName(rawTeam) ? VIEWER_TEAM_KEY : resolveTeam(rawTeam, teamRows, lookup),
+        matchId: clean(row["試合ID"]),
+        team: isViewerTeamName(rawTeam) ? VIEWER_TEAM_KEY : resolveTeam(rawTeam, teamRows, lookup) || compactTeamName(rawTeam),
         tier: tierFrom(rawTeam),
-        role: clean(row["繝ｭ繝ｼ繝ｫ"]).toUpperCase(),
-        name: clean(row["繝励Ξ繧､繝､繝ｼ蜷・]),
-        summoner: clean(row["繧ｵ繝｢繝翫・繝阪・繝"]),
-        champion: clean(row["繝√Ε繝ｳ繝斐が繝ｳ蜷・]),
-        result: clean(row["蜍晄風"]).toUpperCase(),
+        role: clean(row["ロール"]).toUpperCase(),
+        name: clean(row["プレイヤー名"]),
+        summoner: clean(row["サモナーネーム"]),
+        champion: clean(row["チャンピオン名"]),
+        result: clean(row["勝敗"]).toUpperCase(),
         kills: numberValue(row.K),
         deaths: numberValue(row.D),
         assists: numberValue(row.A),
-        damage: numberValue(row["繝繝｡繝ｼ繧ｸ"]),
-        cs15: numberValue(row["15蛻・S"]),
-        gold: numberValue(row["繧ｴ繝ｼ繝ｫ繝・])
+        damage: numberValue(row["ダメージ"]),
+        cs15: numberValue(row["15分CS"]),
+        gold: numberValue(row["ゴールド"])
       };
     });
 }
@@ -334,19 +247,18 @@ function buildPlayerMatches(rows, teamRows, lookup) {
 function buildBpRows(rows, teamRows, lookup) {
   return rows
     .map((row) => {
-      const keys = Object.keys(row);
-      const rawTeam = row["繝√・繝蜷・] ?? row[keys[3]];
-      const type = clean(row["遞ｮ蛻･"] ?? row[keys[5]]).toUpperCase();
+      const rawTeam = row["チーム名"];
+      const type = clean(row["種別"]).toUpperCase();
       return {
-        matchId: clean(row["隧ｦ蜷・D"] ?? row[keys[0]]),
-        team: isViewerTeamName(rawTeam) ? VIEWER_TEAM_KEY : resolveTeam(rawTeam, teamRows, lookup),
-        side: clean(row["繧ｵ繧､繝・] ?? row[keys[4]]).toUpperCase(),
+        matchId: clean(row["試合ID"]),
+        team: isViewerTeamName(rawTeam) ? VIEWER_TEAM_KEY : resolveTeam(rawTeam, teamRows, lookup) || compactTeamName(rawTeam),
+        side: clean(row["サイド"]).toUpperCase(),
         tier: tierFrom(rawTeam),
         type,
-        bpOrder: numberValue(row["BP鬆・] ?? row[keys[6]]),
-        phase: clean(row["繝輔ぉ繝ｼ繧ｺ"] ?? row[keys[7]]),
-        role: clean(row["繝ｭ繝ｼ繝ｫ"] ?? row[keys[8]]).toUpperCase(),
-        champion: clean(row["BAN/PICK髮・ｨ育畑蜷・] ?? row[keys[12]]) || clean(row["繝√Ε繝ｳ繝斐が繝ｳ蜷・] ?? row[keys[11]])
+        bpOrder: numberValue(row["BP順"]),
+        phase: clean(row["フェーズ"]),
+        role: clean(row["ロール"]).toUpperCase(),
+        champion: clean(row["BAN/PICK集計用名"]) || clean(row["チャンピオン名"])
       };
     })
     .filter((row) => row.matchId && row.champion && !isNoBanChampion(row.champion) && (row.type === "BAN" || row.type === "PICK"));
@@ -355,12 +267,11 @@ function buildBpRows(rows, teamRows, lookup) {
 function buildChampionIcons(rows) {
   const icons = {};
   rows.forEach((row) => {
-    const champion = clean(row.Champion) || clean(row["繝√Ε繝ｳ繝斐が繝ｳ蜷・]) || clean(row["繝√Ε繝ｳ繝斐が繝ｳ"]);
-    const icon = clean(row.iconURL) || clean(row.iconUrl) || clean(row.IconURL) || clean(row["繧｢繧､繧ｳ繝ｳURL"]) || clean(row.URL);
+    const champion = clean(row.Champion) || clean(row["チャンピオン名"]) || clean(row["チャンピオン"]);
+    const icon = clean(row.iconURL) || clean(row.iconUrl) || clean(row.IconURL) || clean(row["アイコンURL"]) || clean(row.URL);
     if (champion && icon) icons[champion] = icon;
   });
-  if (!icons["繧ｹ繧ｫ繝ｼ繝翫・"] && icons["繧ｹ繧ｭ繝ｫ繝繝ｼ"]) icons["繧ｹ繧ｫ繝ｼ繝翫・"] = icons["繧ｹ繧ｭ繝ｫ繝繝ｼ"];
-  if (!icons["繝ｦ繝翫Λ"]) icons["繝ｦ繝翫Λ"] = "https://ddragon.leagueoflegends.com/cdn/15.13.1/img/champion/Yunara.png";
+  if (!icons["ユナラ"]) icons["ユナラ"] = "https://ddragon.leagueoflegends.com/cdn/15.13.1/img/champion/Yunara.png";
   return icons;
 }
 
@@ -396,8 +307,8 @@ function resolveTeam(value, teamRows, lookup) {
 }
 
 function isViewerTeamName(value) {
-  const raw = clean(value);
-  return raw.includes("隕冶・閠・) || raw.includes("繝ｪ繧ｹ繝翫・") || /^繝√・繝\d+/u.test(compactTeamName(raw));
+  const raw = clean(value).normalize("NFKC");
+  return raw.includes("リスナー") || raw.includes("視聴者");
 }
 
 function compactTeamName(value) {
@@ -409,11 +320,8 @@ function clean(value) {
 }
 
 function isNoBanChampion(value) {
-  const key = clean(value)
-    .normalize("NFKC")
-    .toUpperCase()
-    .replace(/[\s_\-繝ｻ繝ｼ]/g, "");
-  return ["NOBAN", "BAN縺ｪ縺・, "BAN辟｡縺・, "繝舌Φ縺ｪ縺・, "繝舌Φ辟｡縺・, "縺ｪ縺・, "辟｡縺・].includes(key);
+  const key = clean(value).normalize("NFKC").toUpperCase().replace(/[\s_\-・ー]/g, "");
+  return ["NOBAN", "BANなし", "BAN無し", "バンなし", "バン無し", "なし", "無し"].includes(key);
 }
 
 function dateValue(value) {

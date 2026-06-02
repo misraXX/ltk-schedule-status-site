@@ -4,10 +4,18 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>LTKDB | LTK Schedule & Status</title>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-Y7FKX752KE"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', 'G-Y7FKX752KE');
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/locales-all.global.min.js"></script>
-    <link rel="stylesheet" href="./styles.css?v=20260511-01">
-    <script type="module" src="./app.js?v=20260511-01"></script>
+    <link rel="stylesheet" href="./styles.css?v=20260602-01">
+    <script type="module" src="./app.js?v=20260602-01"></script>
   </head>
   <body>
     <header class="topbar">
@@ -17,7 +25,6 @@
         <div class="data-source-row">
           <p id="dataSourceStatus" class="data-source-status">データ確認中</p>
         </div>
-        <button id="reloadData" class="reload-data-button" type="button">データベース再読込</button>
       </div>
       <div class="nav-stack">
         <nav class="view-tabs aux-tabs" aria-label="補助リンク">
@@ -27,11 +34,12 @@
         <nav class="view-tabs main-tabs" aria-label="メインナビゲーション">
           <button class="tab-button is-active" data-view="calendar">予定</button>
           <button class="tab-button" data-view="league">リーグ表</button>
-          <button class="tab-button" data-view="players">ランキング</button>
-          <button class="tab-button" data-view="stats">個人スタッツ</button>
+          <button class="tab-button" data-view="teams">チーム戦績</button>
+          <button class="tab-button" data-view="stats">個人成績</button>
+          <button class="tab-button" data-view="ranking">個人ランキング</button>
           <button class="tab-button" data-view="champions">チャンピオン</button>
+          <button class="tab-button" data-view="clips" data-clips-preview hidden>切り抜き動画</button>
         </nav>
-        <button id="filterToggle" class="filter-toggle-button nav-filter-toggle" type="button">隠す</button>
       </div>
     </header>
 
@@ -65,6 +73,12 @@
             <option value="NEXT">NEXT</option>
           </select>
         </label>
+        <label>
+          <span>チーム</span>
+          <select id="teamFilter">
+            <option value="">すべて</option>
+          </select>
+        </label>
         <label class="search-box">
           <span>検索</span>
           <input id="keywordFilter" type="search" placeholder="チーム名、選手名、チャンピオン">
@@ -80,14 +94,6 @@
         <div id="calendarGrid" class="calendar-grid"></div>
       </section>
 
-      <section id="playersView" class="view" aria-label="ランキング">
-        <div class="section-heading">
-          <h2>個人ランキング</h2>
-          <p>画像から取得できたKDA、DPM、15分CSを階級別に集計します。</p>
-        </div>
-        <div id="rankingBoard" class="ranking-board"></div>
-      </section>
-
       <section id="leagueView" class="view" aria-label="スクリムリーグ表">
         <div class="section-heading">
           <h2>スクリムリーグ表</h2>
@@ -95,16 +101,36 @@
         <div id="leagueBoard" class="league-board"></div>
       </section>
 
-      <section id="statsView" class="view" aria-label="個人スタッツ">
+      <section id="teamsView" class="view" aria-label="チーム戦績">
         <div class="section-heading">
-          <h2>個人スタッツ</h2>
+          <h2>チーム戦績</h2>
+          <p>チームと階級を別チームとして、勝敗、対戦相手別成績、試合ログを確認できます。</p>
+        </div>
+        <div id="teamStats" class="table-shell"></div>
+      </section>
+
+      <section id="statsView" class="view" aria-label="個人成績">
+        <div class="section-heading">
+          <h2>個人成績</h2>
+          <p>画像から取得できたKDA、DPM、15分CSを階級別に集計します。</p>
         </div>
         <div id="playerStats" class="table-shell"></div>
       </section>
 
+      <section id="rankingView" class="view" aria-label="個人ランキング">
+        <div class="section-heading">
+          <h2>個人ランキング</h2>
+          <p>出場試合数が所属チーム・階級の試合数の半分以上の選手を対象に集計します。</p>
+        </div>
+        <div class="subsection-heading">
+          <h3>個人ランキング</h3>
+        </div>
+        <div id="rankingBoard" class="ranking-board"></div>
+      </section>
+
       <section id="championsView" class="view" aria-label="チャンピオン成績">
         <div class="section-heading">
-          <h2>チャンピオンランキング</h2>
+          <h2>チャンピオン</h2>
           <p>PICK、BAN、勝率、登場数を階級フィルターで確認できます。</p>
         </div>
         <fieldset class="check-filters">
@@ -113,15 +139,64 @@
           <label><input type="checkbox" name="champTier" value="CORE" checked> CORE</label>
           <label><input type="checkbox" name="champTier" value="MASTERS" checked> MASTERS</label>
         </fieldset>
-        <fieldset class="check-filters">
-          <legend>ロール</legend>
-          <label><input type="checkbox" name="champRole" value="TOP" checked> TOP</label>
-          <label><input type="checkbox" name="champRole" value="JG" checked> JG</label>
-          <label><input type="checkbox" name="champRole" value="MID" checked> MID</label>
-          <label><input type="checkbox" name="champRole" value="ADC" checked> ADC</label>
-          <label><input type="checkbox" name="champRole" value="SUP" checked> SUP</label>
-        </fieldset>
+        <div class="subsection-heading">
+          <h3>チャンピオンランキング</h3>
+        </div>
         <div id="championStats" class="table-shell"></div>
+        <div class="subsection-heading">
+          <h3>チャンピオンスタッツ</h3>
+          <button id="championTableToggle" class="subsection-toggle" type="button" aria-expanded="true" aria-controls="championTable">閉じる</button>
+        </div>
+        <div id="championTable" class="table-shell"></div>
+      </section>
+
+      <section id="clipsView" class="view" aria-label="切り抜き動画" data-clips-preview hidden>
+        <div class="section-heading">
+          <div class="clips-title-row">
+            <h2>切り抜き動画</h2>
+            <div id="clipTeamNotice" class="clip-team-notice" hidden>
+              <span data-clip-team-label>全チーム表示中</span>
+              <button type="button" data-change-clip-team>表示を変える</button>
+            </div>
+          </div>
+          <p>LTK観戦の補助になるYouTube動画とTwitchクリップをまとめて確認できます。</p>
+        </div>
+        <div class="clip-source-tabs" role="tablist" aria-label="切り抜き動画ソース">
+          <button class="clip-source-tab is-active" type="button" data-clip-source="youtube">YouTube</button>
+          <button class="clip-source-tab" type="button" data-clip-source="twitch">Twitch Clips</button>
+        </div>
+        <div id="twitchClipIntro" class="twitch-clip-intro" hidden>
+          <div>
+            <strong>お気に入りのLTK Twitchクリップを募集しています。</strong>
+            <p>名場面を見つけたら、URLをフォームから投稿してください。内容確認後、サイトに掲載する場合があります。</p>
+          </div>
+          <a id="twitchClipFormLink" class="clip-submit-link" href="#" target="_blank" rel="noreferrer" aria-disabled="true">クリップを投稿する</a>
+        </div>
+        <div id="twitchClipFilters" class="twitch-clip-filters" hidden>
+          <label>
+            選手名
+            <input id="twitchClipPlayerFilter" type="search" placeholder="関連選手で絞り込み">
+          </label>
+          <label>
+            並び順
+            <select id="twitchClipSortFilter">
+              <option value="new">新着順</option>
+              <option value="views">再生数順</option>
+              <option value="likes">いいね数順</option>
+            </select>
+          </label>
+        </div>
+        <div class="subsection-heading clips-heading">
+          <h3>最新動画</h3>
+          <p id="clipsStatus" class="muted">動画データを確認中</p>
+        </div>
+        <div id="clipsGrid" class="clips-grid"></div>
+        <div id="clipsPagination" class="clip-pagination" aria-label="切り抜き動画ページ送り"></div>
+        <p class="clip-disclaimer">
+          本ページはYouTube上で公開されている動画情報を、LTK観戦の補助を目的として整理している非公式ページです。
+          動画の権利は各投稿者・権利者に帰属します。
+          掲載内容に問題がある場合はお問い合わせよりご連絡ください。
+        </p>
       </section>
 
       <section id="aboutView" class="view" aria-label="このサイトについて">
@@ -134,7 +209,7 @@
             <h3>LTK Schedule & Statusについて</h3>
             <p>
               LTK Schedule & Statusは、League The k4senの参加者・視聴者が、試合予定、スクリム結果、参加者プロフィール、LIVE配信中の情報をまとめて確認できるイベントデータサイトです。
-              データベースとして管理しているLTKDBをもとに、カレンダー、リーグ表、個人スタッツ、チャンピオン成績を見やすく整理しています。
+              データベースとして管理しているLTKDBをもとに、カレンダー、リーグ表、個人成績、チャンピオン成績を見やすく整理しています。
             </p>
           </section>
 
@@ -144,7 +219,7 @@
               <ul>
                 <li>スクリム・本番予定をフルカレンダー形式とカード形式で確認できます。</li>
                 <li>イベントカードから対戦カード、参加者、Gameごとの使用チャンピオンとスタッツを確認できます。</li>
-                <li>階級別のリーグ表、個人ランキング、個人スタッツ、チャンピオンランキングを確認できます。</li>
+                <li>階級別のリーグ表、個人成績、チャンピオン成績を確認できます。</li>
                 <li>LTK参加者のうち、League of Legendsを配信中のTwitch配信をLIVE NOWに表示します。</li>
                 <li>スクリムやリスナー戦を除外して、用途に合わせた集計を確認できます。</li>
               </ul>
@@ -171,13 +246,11 @@
           </section>
 
           <section class="info-block">
-            <h3>今後追加したい機能</h3>
-            <ul>
-              <li>サイト全体の検索性改善</li>
-              <li>選手・チーム・チャンピオン詳細ページの拡充</li>
-              <li>スクリム画像取り込み後の確認フロー改善</li>
-              <li>Firebaseなど、よりリアルタイムに反映しやすいDB構成への移行検討</li>
-            </ul>
+            <h3>情報の共有について</h3>
+            <p>
+              本サイトに掲載している試合予定、戦績、スタッツなどの情報は、SNSや配信内などで自由に紹介・引用していただいて問題ありません。
+              共有する際は、できれば本サイトのURLもあわせて載せてもらえると嬉しいです。
+            </p>
           </section>
 
           <section class="info-block">
@@ -185,6 +258,19 @@
             <p>
               本サイトは、参加者プロフィールやLIVE NOW表示のために、X、YouTube、Twitchなど外部サービスへのリンクや配信情報を参照します。
               外部サイトで提供される情報や利用条件は、それぞれのサービスの規約を確認してください。
+            </p>
+            <p>
+              Twitchクリップページでは、Twitch APIを利用して、Twitch上で公開されているクリップ情報を表示します。
+              クリップ動画、サムネイル、タイトル等の権利は、各配信者・投稿者および権利者に帰属します。
+              掲載内容に問題がある場合は、お問い合わせよりご連絡ください。確認後、速やかに修正または掲載停止します。
+            </p>
+          </section>
+
+          <section class="info-block">
+            <h3>非公式・非商用について</h3>
+            <p>
+              本サイトは個人が作成・運営している非公式のファンサイトであり、League The k4sen、Riot Games、各参加者・所属組織の公式サイトではありません。
+              また、本サイトは現時点で商用利用を目的としておらず、掲載しているロゴ、画像、配信サービス等の権利は各権利者に帰属します。
             </p>
           </section>
 
@@ -228,9 +314,14 @@
           <section class="info-block">
             <h3>連絡先</h3>
             <p>
-              現在、専用フォームは準備中です。データ修正や不具合報告は、LTKDB管理者まで連絡してください。
-              公開用の問い合わせフォームやSNSリンクを設置する場合は、この欄に追記します。
+              データ修正依頼、不具合報告、機能要望はGoogleフォームから送信できます。
+              試合IDや該当ページ、スクリーンショットURLなどが分かる場合は、あわせて記載してください。
             </p>
+            <div class="contact-actions">
+              <a class="contact-form-link" href="https://docs.google.com/forms/d/e/1FAIpQLSex-p2GkBVZ3LBkafhTmx77asdZFCn0KqeOn7HS7jD041VpuA/viewform" target="_blank" rel="noreferrer">
+                Googleフォームを開く
+              </a>
+            </div>
           </section>
 
           <section class="info-block">
@@ -243,18 +334,30 @@
       </section>
       </div>
 
-      <aside id="filterPanel" class="filter-panel" aria-label="FILTER">
-        <div class="sidebar-heading">
-          <p class="eyebrow">FILTER</p>
-          <div class="filter-heading-row">
-            <h2>表示条件</h2>
+      <aside class="right-rail" aria-label="NEWS and FILTER">
+        <section id="newsPanel" class="news-panel" aria-label="NEWS">
+          <div class="sidebar-heading">
+            <p class="eyebrow">NEWS</p>
+            <h2>更新情報</h2>
           </div>
-        </div>
+          <div id="newsList" class="news-list"></div>
+        </section>
+
+        <aside id="filterPanel" class="filter-panel" aria-label="FILTER">
+          <div class="sidebar-heading">
+            <p class="eyebrow">FILTER</p>
+            <div class="filter-heading-row">
+              <h2>表示条件</h2>
+              <button id="filterToggle" class="filter-toggle-button" type="button">隠す</button>
+            </div>
+          </div>
+        </aside>
       </aside>
     </main>
 
     <dialog id="matchDialog" class="match-dialog">
       <div class="dialog-head">
+        <button id="backDialog" class="dialog-back-button" type="button" hidden>← 戻る</button>
         <div>
           <p id="dialogMeta" class="eyebrow"></p>
           <h2 id="dialogTitle"></h2>
@@ -265,6 +368,9 @@
     </dialog>
   </body>
 </html>
+
+
+
 
 
 

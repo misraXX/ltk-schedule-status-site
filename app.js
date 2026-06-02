@@ -1,4 +1,4 @@
-﻿import { loadLiveStreams, loadSiteData } from "./sheet-loader.js?v=20260602-01";
+﻿import { loadLiveStreams, loadSiteData } from "./sheet-loader.js?v=20260602-02";
 
 const VIEWER_OPPONENT_LABEL = "リスナー";
 const VIEWER_TEAM_KEY = "__LISTENER__";
@@ -19,7 +19,7 @@ const CLIP_RECENT_DAYS = 7;
 const CLIP_PAGE_SIZE = 24;
 const TWITCH_CLIP_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLScMV6ErnMTeMzfvV1bE8-L5MDz4hMCiXM33MTqfPmPXSkSUHg/viewform";
 const TWITCH_CLIP_LIKE_ENDPOINT = "https://script.google.com/macros/s/AKfycbwNzByFJex1ZVj7mKFrMnGfYDrRSK_6Ew1j5A-S6hQymMs8a7Emx1_wqWGPObNCe_0/exec";
-const CLIPS_PREVIEW_ENABLED = true;
+const CLIPS_PREVIEW_ENABLED = ["localhost", "127.0.0.1"].includes(window.location.hostname);
 const FULL_CALENDAR_COLLAPSED_EVENT_LIMIT = 2;
 const ROLE_ORDER = ["TOP", "JG", "MID", "ADC", "SUP"];
 const DRAFT_SLOTS = {
@@ -522,9 +522,13 @@ function resolveRouteFromHash(hashValue = window.location.hash) {
   const hash = normalizeHash(hashValue);
   if (!hash) return { route: DEFAULT_ROUTE, invalid: false };
   const route = routeByHash.get(hash);
-  if (route) return { route, invalid: false };
+  if (route) {
+    if (route.view === "clips" && !CLIPS_PREVIEW_ENABLED) return { route: DEFAULT_ROUTE, invalid: true };
+    return { route, invalid: false };
+  }
   if (hash.startsWith("#/clips/")) {
-    return { route: routeByHash.get("#/clips"), invalid: true };
+    const fallbackRoute = CLIPS_PREVIEW_ENABLED ? routeByHash.get("#/clips") : DEFAULT_ROUTE;
+    return { route: fallbackRoute, invalid: true };
   }
   return { route: DEFAULT_ROUTE, invalid: true };
 }

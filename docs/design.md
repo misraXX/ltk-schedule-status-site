@@ -45,9 +45,6 @@ GitHub Pages等の静的配信で404を避けるため、まずはHashルーテ�
 /#/players
 /#/rankings
 /#/champions
-/#/clips
-/#/clips/youtube
-/#/clips/twitch
 /#/about
 /#/contact
 ```
@@ -60,9 +57,6 @@ GitHub Pages等の静的配信で404を避けるため、まずはHashルーテ�
 - `/#/players` は個人成績タブを開く。
 - `/#/rankings` は個人ランキングタブを開く。
 - `/#/champions` はチャンピオンタブを開く。
-- `/#/clips` は切り抜き動画タブを開き、YouTubeを初期表示する。
-- `/#/clips/youtube` は切り抜き動画タブを開き、YouTubeまとめを表示する。
-- `/#/clips/twitch` は切り抜き動画タブを開き、Twitchクリップまとめを表示する。
 - `/#/about` はこのサイトについてタブを開く。
 - `/#/contact` はお問い合わせタブを開く。
 
@@ -72,16 +66,19 @@ GitHub Pages等の静的配信で404を避けるため、まずはHashルーテ�
 
 ## 切り抜き動画ページの公開方針
 
-切り抜き動画ページは今回から公開対象とする。
+切り抜き動画ページは現時点では本番公開対象外とする。
 
-既存実装に `CLIPS_PREVIEW_ENABLED` のようなローカル限定フラグがある場合、URL付きタブ化の実装時に本番でも表示できるように整理する。
+既存実装に `CLIPS_PREVIEW_ENABLED` のようなローカル限定フラグがある場合、本番では非表示を維持する。
 
-切り抜き動画ページ内には、YouTubeとTwitch Clipsの2つのサブタブがある。
+切り抜き動画ページ内には、YouTubeとTwitch Clipsの2つのサブタブがあるが、これらは現時点ではローカル確認用または将来公開用の予約扱いとする。
 
-- `/#/clips` にアクセスした場合は、YouTubeタブを初期表示する。
-- `/#/clips/youtube` にアクセスした場合は、YouTubeタブを表示する。
-- `/#/clips/twitch` にアクセスした場合は、Twitch Clipsタブを表示する。
-- `/#/clips/unknown` のような不正なclips配下URLの場合は、`/#/clips` にフォールバックする。
+- 本番で `/#/clips` にアクセスした場合は、`/#/schedule` にフォールバックする。
+- 本番で `/#/clips/youtube` にアクセスした場合は、`/#/schedule` にフォールバックする。
+- 本番で `/#/clips/twitch` にアクセスした場合は、`/#/schedule` にフォールバックする。
+- ローカルで `/#/clips` にアクセスした場合は、YouTubeタブを初期表示する。
+- ローカルで `/#/clips/youtube` にアクセスした場合は、YouTubeタブを表示する。
+- ローカルで `/#/clips/twitch` にアクセスした場合は、Twitch Clipsタブを表示する。
+- ローカルで `/#/clips/unknown` のような不正なclips配下URLの場合は、`/#/clips` にフォールバックする。
 
 YouTube/TwitchのサブタブURL対応は、既存の切り抜き動画UIを壊さず、既存のタブ表示状態と同期する。
 
